@@ -33,4 +33,10 @@ package palette_pkg;
   localparam color_t C_WATER_7     = {3'd0, 3'd0, 2'd2};   // deep water stays royal blue
   localparam color_t C_WATER_8     = {3'd0, 3'd0, 2'd1};   // only reached behind the sea floor
 
+  // Sea floor.
+  localparam color_t C_SAND_LIGHT  = {3'd6, 3'd5, 2'd1};
+  localparam color_t C_SAND        = {3'd5, 3'd4, 2'd1};
+  localparam color_t C_SAND_DARK   = {3'd4, 3'd3, 2'd1};
+  localparam color_t C_PEBBLE      = {3'd2, 3'd2, 2'd1};
+
 endpackage

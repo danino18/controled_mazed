@@ -45,7 +45,42 @@ module game_system
       .tickState   (tickState)
   );
 
+  // ---------------------------------------------------------------- round control (temporary until game_fsm, M6)
+  // A round starts after reset; a collision freezes the world.
+  logic roundStart;
+  logic started;
+  logic frozen;
+  logic collision;
+
+  always_ff @(posedge clk or negedge resetN) begin
+    if (!resetN) begin
+      started    <= 1'b0;
+      frozen     <= 1'b0;
+      roundStart <= 1'b0;
+    end else begin
+      roundStart <= 1'b0;
+      if (tickState && !started) begin
+        started    <= 1'b1;
+        roundStart <= 1'b1;
+        frozen     <= 1'b0;
+      end else if (tickState && collision) begin
+        frozen <= 1'b1;
+      end
+    end
+  end
+
   // ---------------------------------------------------------------- game logic
+  logic [15:0] rnd;
+
+  lfsr_rng rng (
+      .clk     (clk),
+      .resetN  (resetN),
+      .step    (tickMove),
+      .seedLoad(1'b0),
+      .seed    (16'h0000),
+      .rnd     (rnd)
+  );
+
   logic signed [10:0] birdY;
   logic signed [11:0] birdVy;
   logic [7:0]         birdTrajState;
@@ -54,13 +89,51 @@ module game_system
       .clk      (clk),
       .resetN   (resetN),
       .tick     (tickMove),
-      .run      (1'b1),
-      .restart  (1'b0),
+      .run      (started && !frozen),
+      .restart  (roundStart),
       .mode     (2'd0),
-      .rnd      (16'd0),
+      .rnd      (rnd),
       .birdY    (birdY),
       .birdVy   (birdVy),
       .trajState(birdTrajState)
+  );
+
+  logic [NUM_COLUMNS-1:0]       colActive;
+  logic [NUM_COLUMNS-1:0][10:0] colX;
+  logic [NUM_COLUMNS-1:0][9:0]  gapTop;
+  logic [NUM_COLUMNS-1:0][9:0]  gapBottom;
+  logic                         scorePulse;
+  logic [NUM_COLUMNS-1:0]       hitColumn;
+
+  obstacle_manager obstacles (
+      .clk        (clk),
+      .resetN     (resetN),
+      .tickMove   (tickMove),
+      .tickCheck  (tickCheck),
+      .run        (started && !frozen),
+      .restart    (roundStart),
+      .columnCount(2'd1),
+      .worldStep  (12'(WORLD_STEP_DEFAULT)),
+      .mazeOffset (10'sd0),
+      .rnd        (rnd),
+      .active     (colActive),
+      .colX       (colX),
+      .gapTop     (gapTop),
+      .gapBottom  (gapBottom),
+      .scorePulse (scorePulse)
+  );
+
+  collision_detect collide (
+      .clk      (clk),
+      .resetN   (resetN),
+      .tickCheck(tickCheck),
+      .birdY    (birdY),
+      .active   (colActive),
+      .colX     (colX),
+      .gapTop   (gapTop),
+      .gapBottom(gapBottom),
+      .collision(collision),
+      .hitColumn(hitColumn)
   );
 
   // ---------------------------------------------------------------- drawing
@@ -84,10 +157,26 @@ module game_system
       .pixelY        (pixelY),
       .birdY         (birdY),
       .tick          (tickMove),
-      .animate       (1'b1),
-      .blink         (1'b0),
+      .animate       (!frozen),
+      .blink         (frozen),
       .drawingRequest(birdDR),
       .RGBout        (birdRGB)
+  );
+
+  logic   coralDR;
+  color_t coralRGB;
+
+  coral_draw coralDraw (
+      .clk           (clk),
+      .resetN        (resetN),
+      .pixelX        (pixelX),
+      .pixelY        (pixelY),
+      .active        (colActive),
+      .colX          (colX),
+      .gapTop        (gapTop),
+      .gapBottom     (gapBottom),
+      .drawingRequest(coralDR),
+      .RGBout        (coralRGB)
   );
 
   objects_mux_top mux (
@@ -95,6 +184,8 @@ module game_system
       .resetN            (resetN),
       .birdDrawingRequest(birdDR),
       .birdRGB           (birdRGB),
+      .coralDrawingRequest(coralDR),
+      .coralRGB           (coralRGB),
       .backgroundRGB     (waterRGB),
       .RGBOut            (screenRGB)
   );
@@ -138,6 +229,6 @@ module game_system
   end
 
   // LEDR[0] is driven by the board top level (PLL locked).
-  assign LEDR = {frameCount[5], 7'b0, resetN, 1'b0};
+  assign LEDR = {frameCount[5], 6'b0, frozen, resetN, 1'b0};
 
 endmodule

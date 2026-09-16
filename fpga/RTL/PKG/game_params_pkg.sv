@@ -30,4 +30,25 @@ package game_params_pkg;
   // EASY: one sine-table step per frame (256 frames per bob, ~3.5 s), amplitude 127 px.
   localparam int EASY_PHASE_STEP = 16;            // in 1/16 table entries per frame
 
+  // ---------------------------------------------------------------- coral columns
+  localparam int NUM_COLUMNS     = 3;
+  localparam int CORAL_W         = 64;            // width of the artwork
+  localparam int GAP_H           = 128;           // visible opening between upper and lower coral
+  localparam int GAP_CENTER_MIN  = 80;            // the opening always stays on screen
+  localparam int GAP_CENTER_MAX  = 400;
+  localparam int GAP_BASE_MIN    = 176;           // random opening centre (before the player's offset): 176..303
+  localparam int CORAL_FIRST_X   = 480;           // left edge of the first column when a round starts
+  localparam int CORAL_WRAP_W    = 720;           // a column leaving on the left re-enters this far to the right
+
+  // Collision rectangle vs. artwork: the knobbly sides and the branch tips next to
+  // the opening are decoration and never collide.
+  localparam int CORAL_CORE_INSET  = 4;
+  localparam int CORAL_TIP_FORGIVE = 8;
+
+  // World scroll speed, 1/64 px per frame (SW[2:0] control arrives in M9).
+  localparam int WORLD_STEP_DEFAULT = 128;        // 2.0 px per frame
+
+  // ---------------------------------------------------------------- scenery
+  localparam int SEABED_TOP = 440;                // highest row of the sand
+
 endpackage

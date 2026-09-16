@@ -7,6 +7,7 @@ Measurements are from Quartus Prime Lite 17.0.0 Build 595, full compile (`quartu
 | M0 supplied `VGA_DEMO_Students` (unmodified) | 86 s | 787 (2%) | 592 | 2,555,904 (45%) | 312 (56%) | 0 | +17.39 ns (Fmax 69.7 MHz) | pending |
 | M1 skeleton: water gradient, static bird box, FPS meter, codec held silent | 45 s | 90 (<1%) | 118 | 0 | 0 | 0 | +27.32 ns | passed (audio silent after fix) |
 | M2 animated bird sprite, EASY sine trajectory | 51 s | 162 (<1%) | 178 | 24,576 | 4 | 0 | +24.646 ns | in M8 build |
+| M3 scrolling coral column, geometric collision, freeze, sea floor | 61 s | 287 (<1%) | 264 | 57,344 | 8 | 0 | +24.51 ns (hold +0.17 ns) | in M8 build |
 
 ## M0 — Baseline of the supplied demo
 
@@ -89,3 +90,19 @@ Design rule: any build without the audio block must keep `AUD_XCK` and `AUD_DACD
 - **Water ramp:** the deep water now stays royal blue (`00 00 BF`) instead of dropping into a teal-tinted dark band.
 - **Test infrastructure:** `sim/run_tests.sh` runs in `build/sim` with the `lpm_ver` library. ROM instances use lower-case `lpm_*` parameter names, because the simulation model is case-sensitive.
 - **Expected warnings:** 13049/13046 appear because `lpm_rom`'s internal tri-state outputs are converted to wires. The supplied demo shows the same warning 48 times.
+
+## M3 — Coral column, collision, freeze
+
+- **Coral art:** `assets/sprites/coral.txt` holds two original 64×32 tiles, a body and a tip, in 11 colours. The column is a stack of pink and violet colonies shaded like spheres lit from the upper left. The tip ends in antler branches with yellow polyps. `coral.mif` is 4,096 × 8 bits.
+- **Coral state (logic only):** `obstacle_manager` keeps each column's position (1/64 px) and a random opening centre (176..303). All columns share one vertical offset. Columns re-enter 720 px to the right after leaving the screen, and a column scores when its collision core passes the bird. It already supports 1–3 columns; M3 uses 1.
+- **Collision:** `collision_detect` is purely geometric. The bird hitbox is x 153..169 and y birdY+10..birdY+24. The coral core is 4 px narrower than the art on each side. The 8 rows of branch tips next to the opening never collide.
+- **Coral drawing:** `coral_draw` counts tile rows from the opening edge, so the texture moves with the opening and the lower column is mirrored. One shared ROM serves every column, with a latency of 3 clocks.
+- **Randomness:** `lfsr_rng` is a 16-bit Galois LFSR that steps once per frame; M8 adds seeding.
+- **Sea floor:** a procedural wavy sand strip in `water_background` (sum of two triangle waves), with grain and pebbles.
+- **Temporary round control:** in `game_system`, the round starts after reset and a collision freezes the world while the bird blinks.
+- **Timing:** the new pipeline stages exposed a −0.051 ns hold violation, on a register-to-register path with 0.398 ns clock skew. `OPTIMIZE_HOLD_TIMING` is now `ALL PATHS` (the supplied project had it `OFF`), and timing is met in all four corners.
+- **Tests:**
+  - `tb_collision`: 11 hand-derived boundary cases plus 20,000 random layouts against a reference model.
+  - `tb_obstacles`: 1, 2 and 3 columns over 1,500 frames each, checking movement, wrap-around, spacing, scoring, opening size and clamping, the shared offset, and the freeze.
+  - `tb_water`: also checks the sand.
+- **Renders:** the frames show the column scrolling, the opening, the sea floor, and the freeze at the point where the core reaches the hitbox.

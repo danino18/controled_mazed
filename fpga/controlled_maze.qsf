@@ -18,7 +18,9 @@ set_global_assignment -name FITTER_EFFORT FAST_FIT
 set_global_assignment -name PHYSICAL_SYNTHESIS_COMBO_LOGIC OFF
 set_global_assignment -name PHYSICAL_SYNTHESIS_REGISTER_DUPLICATION OFF
 set_global_assignment -name PHYSICAL_SYNTHESIS_ASYNCHRONOUS_SIGNAL_PIPELINING OFF
-set_global_assignment -name OPTIMIZE_HOLD_TIMING OFF
+# Hold repair stays on: the supplied project disables it, but back-to-back pipeline
+# registers in the drawing layers otherwise fail hold by a few picoseconds.
+set_global_assignment -name OPTIMIZE_HOLD_TIMING "ALL PATHS"
 set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
 set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
 
@@ -36,12 +38,16 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/PKG/game_params_pkg.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/reset_sync.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/bcd_counter.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/leading_zero_blank.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/lfsr_rng.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DEBUG/fps_meter.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/frame_sequencer.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/bird_trajectory.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/obstacle_manager.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/collision_detect.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/water_background.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/birdBitMap.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/bird_draw.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/coral_draw.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/objects_mux_top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/hex_display_top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/TOP/game_system.sv
