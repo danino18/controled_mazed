@@ -1,5 +1,6 @@
 // Controlled Maze - top level.
-// M1: water background, static bird placeholder, frame-rate meter on HEX1..HEX0.
+// M1: water background, static bird placeholder, frame-rate meter on HEX1..HEX0,
+// audio codec held silent.
 
 module controlled_maze_top
   import palette_pkg::*, game_params_pkg::*;
@@ -13,8 +14,15 @@ module controlled_maze_top
     output logic [6:0]  HEX3,
     output logic [6:0]  HEX4,
     output logic [6:0]  HEX5,
-    output logic [28:0] OVGA
+    output logic [28:0] OVGA,
+    output logic        AUD_XCK,        // audio codec master clock
+    output logic        AUD_DACDAT      // audio codec DAC serial data
 );
+
+  // No audio yet. The WM8731 codec keeps its register settings when the FPGA is
+  // reprogrammed, so its clock and data inputs are held low instead of floating.
+  assign AUD_XCK    = 1'b0;
+  assign AUD_DACDAT = 1'b0;
 
   // ---------------------------------------------------------------- clock / reset
   // As in the supplied demo, KEY[0] also resets the PLL; logic stays in reset until it relocks.

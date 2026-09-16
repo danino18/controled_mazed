@@ -215,3 +215,8 @@ set_location_assignment PIN_AK22 -to OVGA[27]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to OVGA[27]
 set_location_assignment PIN_AK21 -to OVGA[28]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to OVGA[28]
+# ---- audio_out
+set_location_assignment PIN_AH30 -to AUD_XCK
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AUD_XCK
+set_location_assignment PIN_AF29 -to AUD_DACDAT
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AUD_DACDAT

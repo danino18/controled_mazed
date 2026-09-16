@@ -36,6 +36,8 @@ for group in "$@"; do
                AJ21 AJ20 AH20 AJ19 AH19 AJ17 AJ16 AK16 \
                AK19 AK18 AJ22 AK22 AK21 ;;
     ps2)   pin PS2_CLK AB25; pin PS2_DAT AA25 ;;
+    # codec inputs driven by the FPGA (supplied pin.tcl: AUDOUT[5] = AUD_XCK, AUDOUT[4] = AUD_DACDAT)
+    audio_out) pin AUD_XCK AH30; pin AUD_DACDAT AF29 ;;
     *) echo "unknown group $group" >&2; exit 1 ;;
   esac
 done

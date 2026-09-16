@@ -179,6 +179,7 @@ collision    = |(enable & x_overlap & outside)
 - **Pipeline latency alignment:** every layer must reach the MUX with the same latency, or objects will shift by a pixel. Registered-address ROMs add one clock.
 - **Art/hitbox mismatch:** caught by the `pixel_collision_dbg` cross-check.
 - **Lost PS/2 break byte:** a parity drop in `bitrec` could leave an arrow "held" until it is pressed again. This is low probability, recoverable, and noted.
+- **Audio codec state survives FPGA reprogramming:** any build without the audio block must drive `AUD_XCK` and `AUD_DACDAT` low, otherwise a previously configured codec produces noise (found at M1).
 - Keep the supplied `FAST_FIT` and `INCREMENTAL_COMPILATION` settings.
 
 ## N. Roadmap
