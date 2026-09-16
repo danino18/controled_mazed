@@ -6,6 +6,7 @@ Measurements are from Quartus Prime Lite 17.0.0 Build 595, full compile (`quartu
 |---|---|---|---|---|---|---|---|---|
 | M0 supplied `VGA_DEMO_Students` (unmodified) | 86 s | 787 (2%) | 592 | 2,555,904 (45%) | 312 (56%) | 0 | +17.39 ns (Fmax 69.7 MHz) | pending |
 | M1 skeleton: water gradient, static bird box, FPS meter, codec held silent | 45 s | 90 (<1%) | 118 | 0 | 0 | 0 | +27.32 ns | passed (audio silent after fix) |
+| M2 animated bird sprite, EASY sine trajectory | 51 s | 162 (<1%) | 178 | 24,576 | 4 | 0 | +24.646 ns | in M8 build |
 
 ## M0 — Baseline of the supplied demo
 
@@ -74,3 +75,17 @@ Fix: `controlled_maze_top.sv` now declares `AUD_XCK` and `AUD_DACDAT` as outputs
 This needed a recompile (45 s, 0 errors). The only new warnings are the two intended 13410 "stuck at GND" messages. The second build (checksum `0x00B27710`) was programmed and retested: the audio is silent, and the gradient, amber square, 72/73 display and LEDR9 are unchanged. **M1 board validation passed.**
 
 Design rule: any build without the audio block must keep `AUD_XCK` and `AUD_DACDAT` driven low.
+
+## M2 — Animated bird, EASY trajectory
+
+- **Sprite:** `assets/sprites/bird.txt` is original 32×32 text pixel art with 3 wing-fin frames and 9 colours: amber body, cyan fin, navy outline. `tools/sprite_tool.tcl` (run with `quartus_sh -t`) converts it to `fpga/RTL/MIF/bird.mif` (3,072 × 8 bits) and to an HTML preview.
+- **Drawing:** `bird_draw` is the supplied `square_object` (the bracket) plus the new `birdBitMap` (modelled on `smileyBitMap`). The ROM address is `{frame, y, x}`, and the frames play 0-1-2-1 at about 9 steps/s.
+- **Layer latency:** every drawing layer delivers its colour 3 clocks after the pixel coordinates, and `water_background` was padded to match.
+- **Game structure:**
+  - `frame_sequencer` splits each frame into `tickMove` → `tickCheck` → `tickState`.
+  - `game_system` holds everything that runs on the pixel clock and can be simulated. The board top keeps only the PLL, the reset and the codec tie-offs.
+- **EASY motion:** `bird_trajectory` reuses the supplied `sintable` unchanged, so the bird bobs 96..351 px with a 256-frame period. The table's coarse steps give at most 4 px/frame.
+- **Frame rendering:** `sim/tb_render.sv` records complete VGA frames from the `oVGA` pins (with board colour wiring), and `tools/ppm2png.pl` turns them into PNGs. The frames confirm the sprite is pixel-exact on screen.
+- **Water ramp:** the deep water now stays royal blue (`00 00 BF`) instead of dropping into a teal-tinted dark band.
+- **Test infrastructure:** `sim/run_tests.sh` runs in `build/sim` with the `lpm_ver` library. ROM instances use lower-case `lpm_*` parameter names, because the simulation model is case-sensitive.
+- **Expected warnings:** 13049/13046 appear because `lpm_rom`'s internal tri-state outputs are converted to wires. The supplied demo shows the same warning 48 times.

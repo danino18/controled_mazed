@@ -34,3 +34,6 @@ wlf*
 
 # Supplied .qar archives restored for reference (regenerable from qar_files_from_labs/)
 reference/
+
+# Generated previews
+build/

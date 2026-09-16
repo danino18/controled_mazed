@@ -24,12 +24,12 @@ module tb_water;
     return -1;
   endfunction
 
-  // Registered output: sample one clock after driving the coordinates.
+  // The layer has a 3-clock latency: hold the coordinates, then sample.
   task automatic sample(input int x, input int y, output int idx);
     @(negedge clk);
     pixelX = x;
     pixelY = y;
-    @(negedge clk);
+    repeat (3) @(negedge clk);
     idx = ramp_index(rgb);
   endtask
 

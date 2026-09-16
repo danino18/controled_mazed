@@ -28,6 +28,7 @@ set_global_assignment -name SIP_FILE CLK_31P5.sip
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/VGA/VGA_Controller.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/VGA/square_object.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/Seg7/SEG7.SV
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/AUDIO/SinTable.sv
 
 # ---- project sources (packages first)
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/PKG/palette_pkg.sv
@@ -36,9 +37,14 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/reset_sync.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/bcd_counter.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/leading_zero_blank.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DEBUG/fps_meter.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/frame_sequencer.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/bird_trajectory.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/water_background.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/birdBitMap.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/bird_draw.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/objects_mux_top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/hex_display_top.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/TOP/game_system.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/TOP/controlled_maze_top.sv
 
 set_global_assignment -name SDC_FILE constraints/controlled_maze.sdc

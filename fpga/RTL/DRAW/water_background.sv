@@ -2,7 +2,7 @@
 //
 // The screen is split into 64-pixel bands. Each band blends from one ramp
 // colour to the next using a 4x4 ordered (Bayer) dither, which hides the
-// coarse 2-bit blue channel.
+// coarse 2-bit blue channel. Latency: 3 clocks, like every drawing layer.
 
 module water_background
   import palette_pkg::*;
@@ -34,11 +34,17 @@ module water_background
   assign threshold = BAYER[pixelY[1:0]][pixelX[1:0]];
   assign useNext   = (blend > threshold);
 
+  color_t stage1, stage2;
+
   always_ff @(posedge clk or negedge resetN) begin
     if (!resetN) begin
+      stage1 <= C_BLACK;
+      stage2 <= C_BLACK;
       RGBout <= C_BLACK;
     end else begin
-      RGBout <= useNext ? RAMP[band + 4'd1] : RAMP[band];
+      stage1 <= useNext ? RAMP[band + 4'd1] : RAMP[band];
+      stage2 <= stage1;
+      RGBout <= stage2;
     end
   end
 

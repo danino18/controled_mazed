@@ -1,33 +1,53 @@
 #!/bin/sh
-# Compiles the RTL and runs every self-checking testbench in ModelSim-Intel ASE.
-# Usage: sh sim/run_tests.sh [tb_name ...]     (default: all tb_*.sv)
+# Compiles the RTL listed in the Quartus project and runs self-checking
+# testbenches in ModelSim-Intel ASE. Runs inside build/sim so that the
+# lpm_rom models find their .mif files at the same relative paths as Quartus.
+# Sources are passed as relative paths because the repository path has a space.
+#
+# Usage: sh sim/run_tests.sh [tb_name ...]          (default: every tb_*.sv except tb_render)
+#        sh sim/run_tests.sh tb_render +shots=2,40      (writes build/sim/frame_NNN.png)
 
 MODELSIM=${MODELSIM:-/c/intelFPGA_lite/17.0/modelsim_ase/win32aloem}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-RTL="$ROOT/fpga/RTL"
+SIMDIR="$ROOT/build/sim"
 
-cd "$ROOT/sim" || exit 1
-rm -rf work
+mkdir -p "$SIMDIR"
+cd "$SIMDIR" || exit 1
+rm -rf work RTL
+mkdir -p RTL
+cp -r "$ROOT/fpga/RTL/MIF" RTL/ 2>/dev/null
 "$MODELSIM/vlib" work > /dev/null
 
-"$MODELSIM/vlog" -sv -quiet -work work \
-  "$RTL/PKG/palette_pkg.sv" \
-  "$RTL/PKG/game_params_pkg.sv" \
-  "$RTL/VGA/VGA_Controller.sv" \
-  "$RTL/VGA/square_object.sv" \
-  "$RTL/COMMON/"*.sv \
-  "$RTL/DEBUG/"*.sv \
-  "$RTL/DRAW/water_background.sv" \
-  "$ROOT/sim/"tb_*.sv || exit 1
+# RTL sources in project order (packages first), excluding precompiled/IP blocks.
+SOURCES=$(grep -E "^set_global_assignment -name (SYSTEMVERILOG|VERILOG)_FILE RTL/" "$ROOT/fpga/controlled_maze.qsf" \
+          | awk '{print $NF}' | grep -v "TOP/controlled_maze_top.sv" | grep -v "kbd_wrapper.v" \
+          | sed "s|^|../../fpga/|")
 
-if [ $# -eq 0 ]; then
-  set -- $(ls tb_*.sv | sed 's/\.sv$//')
+# shellcheck disable=SC2086
+"$MODELSIM/vlog" -sv -quiet -work work $SOURCES ../../sim/tb_*.sv || exit 1
+
+PLUSARGS=""
+TESTS=""
+for arg in "$@"; do
+  case $arg in
+    +*) PLUSARGS="$PLUSARGS $arg" ;;
+    *)  TESTS="$TESTS $arg" ;;
+  esac
+done
+if [ -z "$TESTS" ]; then
+  TESTS=$(cd "$ROOT/sim" && ls tb_*.sv | sed 's/\.sv$//' | grep -v '^tb_render$')
 fi
 
 status=0
-for tb in "$@"; do
-  result=$("$MODELSIM/vsim" -c -quiet work."$tb" -do "run -all; quit -f" 2>&1 | grep -E "^# (PASS|FAIL|INFO)" | sed 's/^# //')
-  echo "$result"
-  echo "$result" | grep -q "^PASS: $tb" || status=1
+for tb in $TESTS; do
+  # shellcheck disable=SC2086
+  result=$("$MODELSIM/vsim" -c -quiet -L lpm_ver work."$tb" $PLUSARGS -do "run -all; quit -f" 2>&1)
+  echo "$result" | grep -E "^# (PASS|FAIL|INFO|\*\* (Error|Fatal))" | sed 's/^# //'
+  echo "$result" | grep -q "^# PASS: $tb" || status=1
+done
+
+for ppm in frame_*.ppm; do
+  [ -f "$ppm" ] || continue
+  perl "$ROOT/tools/ppm2png.pl" "$ppm" "${ppm%.ppm}.png"
 done
 exit $status
