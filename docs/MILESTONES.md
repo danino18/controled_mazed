@@ -11,6 +11,7 @@ Measurements are from Quartus Prime Lite 17.0.0 Build 595, full compile (`quartu
 | M4 arrow-key maze control, playable single column | 71 s | 391 (<1%) | 357 | 57,344 | 8 | 0 | +22.47 ns (hold +0.17 ns) | in M8 build |
 | M5 score + best score on VGA HUD and HEX | 74 s | 488 (1%) | 344 | 61,440 | 9 | 0 | +22.63 ns (hold +0.17 ns) | in M8 build |
 | M6 game FSM, menus, GET READY, GAME OVER, restart, main menu, panels | 102 s* | 928 (2%) | 439 | 61,440 | 9 | 0 | +19.10 ns (hold +0.14 ns) | in M8 build |
+| M7 1/2/3 columns verified; game logic separated into game_logic | 84 s | 931 (2%) | 435 | 61,440 | 9 | 0 | +18.23 ns (hold +0.16 ns) | in M8 build |
 
 ## M0 — Baseline of the supplied demo
 
@@ -162,3 +163,17 @@ Design rule: any build without the audio block must keep `AUD_XCK` and `AUD_DACD
   - `tb_game_fsm` (report module #1) visits every state and every transition: cursor clamping, remembered choices, exact timer lengths, pulses fired exactly once, the GAME OVER lockout, RESTART keeping the settings, MAIN MENU, and crash signals ignored outside PLAY.
   - `tb_render +scenario=tour` plays through all screens with scripted key presses and saves 8 screenshots (menu, obstacle menu, GET READY, play, hit flash, game over with each option selected, back to the menu).
 - **Rendering note:** the menu and game-over panels need nearly 1,000 ALMs in total, mostly in the table-driven text renderer. That is still only 2% of the device.
+
+## M7 — 1, 2 or 3 controlled columns
+
+- The obstacle menu's choice drives `obstacle_manager`:
+  - Columns are spaced 720 / count px apart (720, 360 or 240).
+  - Every active column shares the one maze offset.
+  - Collision and scoring cover every active column.
+- **Refactor:** all game rules now live in `game_logic` (state machine, bird, steering, coral, collision, score), which knows nothing about pixels. `game_system` = VGA timing + keyboard + `game_logic` + drawing layers. This is the separation the design calls for, so the same rules can later be stepped by an on-chip training simulator.
+- **`tb_autopilot` (new, headless):** runs `game_logic` with one frame every 6 clocks, which is thousands of frames per second, and plays it with a simple autopilot that holds Up/Down to keep the next opening centred on the bird.
+  - For each column count it checks the menu selection, survival, and score = independently counted passes.
+  - It also checks that every active opening moves exactly with the maze offset (10,845 column-frames confirmed), that the bird crashes when steering stops, and that RESTART and MAIN MENU work.
+  - EASY results (2,500 frames each): 1 column scored 7, 2 columns 14, 3 columns 20. The autopilot never crashed.
+- **`tb_collision`:** now also covers a crash caused by each column index, with 1–3 active columns, and inactive or distant columns never colliding.
+- **`tb_obstacles`** already covers placement, spacing, scoring and clamping for 1, 2 and 3 columns.

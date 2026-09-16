@@ -56,6 +56,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/bird_trajectory.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/obstacle_manager.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/collision_detect.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/score_bcd.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/game_logic.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/water_background.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/birdBitMap.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/bird_draw.sv

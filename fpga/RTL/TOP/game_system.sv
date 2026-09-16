@@ -1,6 +1,7 @@
-// Everything that runs on the pixel clock: VGA timing, game logic and drawing.
-// Kept separate from the board-specific top level (PLL, precompiled keyboard
-// and codec blocks) so the whole game can be simulated.
+// Everything that runs on the pixel clock: VGA timing, keyboard decoding,
+// the game rules (game_logic) and the drawing layers. Kept separate from the
+// board-specific top level (PLL, precompiled keyboard and codec blocks) so the
+// whole game can be simulated.
 
 module game_system
   import palette_pkg::*, game_params_pkg::*, game_state_pkg::*;
@@ -74,152 +75,66 @@ module game_system
       .enterPulse(enterPulse)
   );
 
-  // ---------------------------------------------------------------- game flow
-  logic [2:0] screen;
-  logic [1:0] difficulty;
-  logic [1:0] columnCount;
-  logic [1:0] menuCursor;
-  logic [7:0] stateFrames;
-  logic       roundStart;
-  logic       roundOver;
-  logic       menuStart;
-  logic       collision;
-
-  game_fsm fsm (
-      .clk        (clk),
-      .resetN     (resetN),
-      .tick       (tickState),
-      .upPulse    (upPulse),
-      .downPulse  (downPulse),
-      .enterPulse (enterPulse),
-      .collision  (collision),
-      .state      (screen),
-      .difficulty (difficulty),
-      .columnCount(columnCount),
-      .menuCursor (menuCursor),
-      .stateFrames(stateFrames),
-      .roundStart (roundStart),
-      .roundOver  (roundOver),
-      .menuStart  (menuStart)
-  );
-
-  logic inMenu, worldRun, steerRun, birdRun, crashed, flash;
-
-  assign inMenu   = (screen == ST_MENU_DIFF) || (screen == ST_MENU_OBST);
-  assign worldRun = (screen == ST_PLAY);
-  assign steerRun = (screen == ST_PLAY) || (screen == ST_READY);   // the player may line up the coral while getting ready
-  assign birdRun  = worldRun || inMenu;                               // the bird bobs behind the menus
-  assign crashed  = (screen == ST_HIT) || (screen == ST_GAME_OVER);
-  assign flash    = (screen == ST_HIT) && (stateFrames < 8'd8);
-
-  // ---------------------------------------------------------------- game logic
-  logic [15:0] rnd;
-
-  lfsr_rng rng (
-      .clk     (clk),
-      .resetN  (resetN),
-      .step    (tickMove),
-      .seedLoad(1'b0),
-      .seed    (16'h0000),
-      .rnd     (rnd)
-  );
-
-  logic signed [10:0] birdY;
-  logic signed [11:0] birdVy;
-  logic [7:0]         birdTrajState;
-
-  bird_trajectory bird (
-      .clk      (clk),
-      .resetN   (resetN),
-      .tick     (tickMove),
-      .run      (birdRun),
-      .restart  (roundStart || menuStart),
-      .mode     (inMenu ? DIFF_EASY : difficulty),
-      .rnd      (rnd),
-      .birdY    (birdY),
-      .birdVy   (birdVy),
-      .trajState(birdTrajState)
-  );
-
-  logic ctrlUp, ctrlDown;
-  logic signed [9:0] mazeOffset;
-  logic signed [4:0] mazeVy;
-
-  control_mux steering (
-      .aiMode  (1'b0),          // AI arrives in the ML phase
-      .kbdUp   (upHeld),
-      .kbdDown (downHeld),
-      .aiUp    (1'b0),
-      .aiDown  (1'b0),
-      .aiValid (1'b0),
-      .ctrlUp  (ctrlUp),
-      .ctrlDown(ctrlDown)
-  );
-
-  maze_control maze (
-      .clk       (clk),
-      .resetN    (resetN),
-      .tick      (tickMove),
-      .run       (steerRun),
-      .restart   (roundStart),
-      .moveUp    (ctrlUp),
-      .moveDown  (ctrlDown),
-      .mazeOffset(mazeOffset),
-      .mazeVy    (mazeVy)
-  );
-
+  // ---------------------------------------------------------------- game rules
+  logic [2:0]                   screen;
+  logic [1:0]                   difficulty;
+  logic [1:0]                   columnCount;
+  logic [1:0]                   menuCursor;
+  logic [7:0]                   stateFrames;
+  logic signed [10:0]           birdY;
+  logic signed [11:0]           birdVy;
+  logic [7:0]                   birdTrajState;
+  logic signed [9:0]            mazeOffset;
   logic [NUM_COLUMNS-1:0]       colActive;
   logic [NUM_COLUMNS-1:0][10:0] colX;
   logic [NUM_COLUMNS-1:0][9:0]  gapTop;
   logic [NUM_COLUMNS-1:0][9:0]  gapBottom;
-  logic                         scorePulse;
+  logic                         collision;
   logic [NUM_COLUMNS-1:0]       hitColumn;
+  logic [2:0][3:0]              score;
+  logic [2:0][3:0]              best;
+  logic                         newBest;
 
-  obstacle_manager obstacles (
-      .clk        (clk),
-      .resetN     (resetN),
-      .tickMove   (tickMove),
-      .tickCheck  (tickCheck),
-      .run        (worldRun),
-      .restart    (roundStart),
-      .columnCount(columnCount),
-      .worldStep  (12'(WORLD_STEP_DEFAULT)),
-      .mazeOffset (mazeOffset),
-      .rnd        (rnd),
-      .active     (colActive),
-      .colX       (colX),
-      .gapTop     (gapTop),
-      .gapBottom  (gapBottom),
-      .scorePulse (scorePulse)
+  game_logic gameLogic (
+      .clk          (clk),
+      .resetN       (resetN),
+      .tickMove     (tickMove),
+      .tickCheck    (tickCheck),
+      .tickState    (tickState),
+      .upHeld       (upHeld),
+      .downHeld     (downHeld),
+      .upPulse      (upPulse),
+      .downPulse    (downPulse),
+      .enterPulse   (enterPulse),
+      .aiMode       (1'b0),          // AI arrives in the ML phase
+      .aiUp         (1'b0),
+      .aiDown       (1'b0),
+      .aiValid      (1'b0),
+      .screen       (screen),
+      .difficulty   (difficulty),
+      .columnCount  (columnCount),
+      .menuCursor   (menuCursor),
+      .stateFrames  (stateFrames),
+      .birdY        (birdY),
+      .birdVy       (birdVy),
+      .birdTrajState(birdTrajState),
+      .mazeOffset   (mazeOffset),
+      .colActive    (colActive),
+      .colX         (colX),
+      .gapTop       (gapTop),
+      .gapBottom    (gapBottom),
+      .collision    (collision),
+      .hitColumn    (hitColumn),
+      .score        (score),
+      .best         (best),
+      .newBest      (newBest)
   );
 
-  collision_detect collide (
-      .clk      (clk),
-      .resetN   (resetN),
-      .tickCheck(tickCheck),
-      .birdY    (birdY),
-      .active   (colActive),
-      .colX     (colX),
-      .gapTop   (gapTop),
-      .gapBottom(gapBottom),
-      .collision(collision),
-      .hitColumn(hitColumn)
-  );
+  logic inMenu, crashed, flash;
 
-  logic [2:0][3:0] score;
-  logic [2:0][3:0] best;
-  logic            newBest;
-
-  score_bcd scoring (
-      .clk       (clk),
-      .resetN    (resetN),
-      .clearScore(roundStart),
-      .addPoint  (scorePulse),
-      .commitBest(roundOver),
-      .score     (score),
-      .best      (best),
-      .newBest   (newBest)
-  );
+  assign inMenu  = (screen == ST_MENU_DIFF) || (screen == ST_MENU_OBST);
+  assign crashed = (screen == ST_HIT) || (screen == ST_GAME_OVER);
+  assign flash   = (screen == ST_HIT) && (stateFrames < 8'd8);
 
   // ---------------------------------------------------------------- drawing
   color_t waterRGB;
@@ -232,8 +147,8 @@ module game_system
       .RGBout(waterRGB)
   );
 
-  logic   coralDR;
-  color_t coralRGB;
+  logic                   coralDR;
+  color_t                 coralRGB;
   logic [NUM_COLUMNS-1:0] coralShown;
 
   assign coralShown = inMenu ? '0 : colActive;

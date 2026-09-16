@@ -75,6 +75,44 @@ module tb_collision;
     check(100, 120, 200, 0, 0, "inactive column never collides");
     check(100, -64, 200, 1, 0, "column off screen on the left");
 
+    // multi-column layouts: each column can cause the crash, inactive ones never do
+    for (int target = 0; target < NUM_COLUMNS; target++) begin
+      for (int count = 1; count <= NUM_COLUMNS; count++) begin
+        birdY = 11'd100;                                   // hitbox rows 110..124
+        for (int i = 0; i < NUM_COLUMNS; i++) begin
+          active[i]    = (i < count);
+          colX[i]      = 11'(i == target ? 120 : 400 + 100 * i);   // only the target overlaps the bird
+          gapTop[i]    = 10'd200;                          // bird above every opening -> crash on overlap
+          gapBottom[i] = 10'd328;
+        end
+        @(negedge clk);
+        tickCheck = 1'b1;
+        @(negedge clk);
+        tickCheck = 1'b0;
+        if (collision !== (target < count) || hitColumn !== ((target < count) ? 3'(1 << target) : 3'b000)) begin
+          errors++;
+          $display("FAIL: %0d active columns, column %0d over the bird: collision=%b hit=%b",
+                   count, target, collision, hitColumn);
+        end
+      end
+    end
+    // the bird inside the opening of the overlapping column is safe even if others would hit elsewhere
+    birdY = 11'd220;
+    for (int i = 0; i < NUM_COLUMNS; i++) begin
+      active[i]    = 1'b1;
+      colX[i]      = 11'(120 + 240 * i);
+      gapTop[i]    = 10'(i == 0 ? 200 : 16);
+      gapBottom[i] = 10'(i == 0 ? 328 : 144);
+    end
+    @(negedge clk);
+    tickCheck = 1'b1;
+    @(negedge clk);
+    tickCheck = 1'b0;
+    if (collision !== 1'b0) begin
+      errors++;
+      $display("FAIL: far columns caused a collision");
+    end
+
     // random layouts
     for (int n = 0; n < 20000; n++) begin
       int by, cx, gt;

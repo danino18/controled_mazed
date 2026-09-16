@@ -29,10 +29,10 @@ module tb_render;
       .OVGA(ovga), .HEX0(hex0), .HEX1(hex1), .HEX2(hex2), .HEX3(hex3), .HEX4(hex4), .HEX5(hex5),
       .LEDR(ledr));
 
-  defparam dut.fsm.READY_FRAMES     = 12;
-  defparam dut.fsm.HIT_FRAMES       = 10;
-  defparam dut.fsm.OVER_LOCK_FRAMES = 2;
-  defparam dut.obstacles.FIRST_X    = 250;
+  defparam dut.gameLogic.READY_FRAMES     = 12;
+  defparam dut.gameLogic.HIT_FRAMES       = 10;
+  defparam dut.gameLogic.OVER_LOCK_FRAMES = 2;
+  defparam dut.gameLogic.FIRST_X          = 250;
 
   localparam logic [8:0] KEY_UP = 9'h175, KEY_DOWN = 9'h172, KEY_ENTER = 9'h05A;
 
