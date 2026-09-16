@@ -23,10 +23,10 @@ Approved by the team on 2026-09-16. Changes to this design are recorded in the r
 
 | Fact | Source | Consequence |
 |---|---|---|
-| 8-bit color is **2-3-3**: `[1:0]`=R, `[4:2]`=G, `[7:5]`=B | `VGA_Controller.sv` | Good blue/green depth for the underwater theme |
-| `8'hFF` = transparent | `smileyBitMap.sv`, `square_object.sv` | Never use pure white in sprites (`8'hFE` instead) |
-| Frame rate ≈ **72.8 Hz** (832×520 @ 31.5 MHz) | H/V constants | **Contradiction:** `game_controller.sv` comment says 30 Hz. All speed constants are calibrated to 72.8 fps |
-| `back_ground_draw.sv` packs `{blue, red, green}` | vs controller mapping | **Contradiction:** the demo mislabels its colors; the controller's mapping is authoritative |
+| 8-bit color is **RRRGGGBB**: `[7:5]`=R, `[4:2]`=G, `[1:0]`=B *(corrected at M1; the design review said 2-3-3)* | `VGA_Controller.sv` bit order + supplied `pin.tcl` routing; confirmed by the supplied art (`smiely.mif` is mostly `F8`/`FC` yellows, `heart1.mif` mostly `E0`/`C0` reds) | Blue has only 4 levels (`00`,`40`,`BF`,`FF` after MSB replication), so the water gradient uses green/blue mixes plus 4×4 ordered dithering |
+| `8'hFF` = transparent | `smileyBitMap.sv`, `square_object.sv` | Never use pure white in sprites; the palette uses `8'hDF` (cool white) instead |
+| Frame rate ≈ **72.6 Hz**: the counters run 0..832 and 0..520, so a frame is 833 × 521 clocks at 31.5 MHz *(M1 simulation; the review estimated 72.8 Hz from 832 × 520)* | `VGA_Controller.sv` counters | **Contradiction:** `game_controller.sv` comment says 30 Hz. Speeds are calibrated to ~72.6 fps. The same off-by-one also makes `PixelX`/`PixelY` reach 640/480 |
+| Colour field names in the supplied code are unreliable | `VGA_Controller.sv` comments call `[1:0]` red; `back_ground_draw.sv` packs `{blueBits, redBits, greenBits}` | **Contradiction:** neither matches the screen. The pin routing and the supplied MIF art are authoritative (RRRGGGBB) |
 | `vga_bg.mif` = 2.46 Mbit ≈ **45% of device M10K** | `back_ground_draw.sv` | No full-screen background ROM; use tiles + procedural layers |
 | HEX0–HEX5, SW[9:0], KEY[3:0] | `constraints/pin.tcl` | 6 seven-segment digits available |
 | `byterec.sv` emits **9-bit `keyCode` = {E0-extended, scancode}** | KBD lab `byterec.sv`; demo `TOP_KBD.bdf` exposes `keyCode[8..0]`, `make`, `brake` from `KBDINTF` | Arrow keys = `9'h175` / `9'h172`; decode with the supplied `singleKeyDecoder` |
@@ -121,7 +121,7 @@ collision    = |(enable & x_overlap & outside)
 **Bird (decision 2).**
 - 32×32 with 3 frames, played ping-pong (0-1-2-1) with one step every 8 frames (≈9 Hz).
 - ROM address is pure concatenation, `{frame[1:0], offsetY[4:0], offsetX[4:0]}`, so no arithmetic is needed. The ROM is 3072×8 = 24.6 Kb.
-- The design is original: a side-view fish-bird with a dark navy outline, an amber body (complementary to the water), and a clear cyan fin. It uses ≤8 colors from a shared project palette package, and `8'hFE` stands in for white.
+- The design is original: a side-view fish-bird with a dark navy outline, an amber body (complementary to the water), and a clear cyan fin. It uses ≤8 colors from a shared project palette package, and `8'hDF` (cool white) stands in for white because `8'hFF` is transparent.
 - The frames differ only in the fin, so the silhouette stays stable.
 
 **Asset workflow.**
