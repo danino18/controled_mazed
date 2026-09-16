@@ -1,7 +1,12 @@
 // All game rules, with no knowledge of pixels: game flow, bird motion, maze
 // steering, coral columns, collision and score. Driven by the three per-frame
 // ticks, so the same module can run behind the VGA display or be stepped much
-// faster than real time by a testbench (and later by an on-chip simulator).
+// faster than real time by a testbench or by the on-chip trainer.
+//
+// The world (bird and coral columns) lives in world_engine and the player's
+// part (maze offset, openings, collision) in lane_engine. The on-chip trainer
+// instantiates exactly these two modules, so training and the visible game
+// follow the same rules.
 
 module game_logic
   import game_params_pkg::*, game_state_pkg::*;
@@ -26,7 +31,7 @@ module game_logic
     input  logic                         speedUpHeld,
     input  logic                         speedDownHeld,
 
-    // future AI steering (see control_mux)
+    // AI steering (see control_mux)
     input  logic                         aiMode,
     input  logic                         aiUp,
     input  logic                         aiDown,
@@ -44,8 +49,10 @@ module game_logic
     output logic signed [11:0]           birdVy,
     output logic [7:0]                   birdTrajState,
     output logic signed [9:0]            mazeOffset,
+    output logic signed [4:0]            mazeVy,
     output logic [NUM_COLUMNS-1:0]       colActive,
     output logic [NUM_COLUMNS-1:0][10:0] colX,
+    output logic [NUM_COLUMNS-1:0][8:0]  gapBase,
     output logic [NUM_COLUMNS-1:0][9:0]  gapTop,
     output logic [NUM_COLUMNS-1:0][9:0]  gapBottom,
     output logic                         collision,
@@ -112,76 +119,15 @@ module game_logic
 
   // ---------------------------------------------------------------- randomness
   // The supplied random.sv latches a free-running counter when Enter is pressed;
-  // human timing makes that value unpredictable, so it seeds both LFSRs at the
-  // start of every round. The coral and the bird use separate streams.
+  // human timing makes that value unpredictable, so it seeds the world at the
+  // start of every round.
   logic [15:0] entropy;
-  logic [15:0] worldRnd;
-  logic [15:0] birdRnd;
 
   random #(.SIZE_BITS(16), .MIN_VAL(16'h0000), .MAX_VAL(16'hFFFF)) entropySource (
       .clk   (clk),
       .resetN(resetN),
       .rise  (enterPulse),
       .dout  (entropy)
-  );
-
-  lfsr_rng worldRng (
-      .clk     (clk),
-      .resetN  (resetN),
-      .step    (tickMove),
-      .seedLoad(roundStart),
-      .seed    (entropy),
-      .rnd     (worldRnd)
-  );
-
-  lfsr_rng birdRng (
-      .clk     (clk),
-      .resetN  (resetN),
-      .step    (tickMove),
-      .seedLoad(roundStart),
-      .seed    ({entropy[7:0], entropy[15:8]} ^ 16'h5A5A),
-      .rnd     (birdRnd)
-  );
-
-  // ---------------------------------------------------------------- bird
-  bird_trajectory bird (
-      .clk      (clk),
-      .resetN   (resetN),
-      .tick     (tickMove),
-      .run      (birdRun),
-      .restart  (roundStartD || menuStart),
-      .mode     (inMenu ? DIFF_EASY : difficulty),
-      .rnd      (birdRnd),
-      .birdY    (birdY),
-      .birdVy   (birdVy),
-      .trajState(birdTrajState)
-  );
-
-  // ---------------------------------------------------------------- maze steering
-  logic ctrlUp, ctrlDown;
-  logic signed [4:0] mazeVy;
-
-  control_mux steering (
-      .aiMode  (aiMode),
-      .kbdUp   (upHeld),
-      .kbdDown (downHeld),
-      .aiUp    (aiUp),
-      .aiDown  (aiDown),
-      .aiValid (aiValid),
-      .ctrlUp  (ctrlUp),
-      .ctrlDown(ctrlDown)
-  );
-
-  maze_control maze (
-      .clk       (clk),
-      .resetN    (resetN),
-      .tick      (tickMove),
-      .run       (steerRun),
-      .restart   (roundStartD),
-      .moveUp    (ctrlUp),
-      .moveDown  (ctrlDown),
-      .mazeOffset(mazeOffset),
-      .mazeVy    (mazeVy)
   );
 
   // ---------------------------------------------------------------- world/coral scroll speed
@@ -197,40 +143,68 @@ module game_logic
       .worldStep    (worldStep)
   );
 
-  // ---------------------------------------------------------------- coral, collision, score
+  // ---------------------------------------------------------------- world: bird and coral columns
   logic scorePulse;
 
-  obstacle_manager #(.FIRST_X(FIRST_X)) obstacles (
-      .clk        (clk),
-      .resetN     (resetN),
-      .tickMove   (tickMove),
-      .tickCheck  (tickCheck),
-      .run        (worldRun),
-      .restart    (roundStartD),
-      .columnCount(columnCount),
-      .worldStep  (worldStep),
-      .mazeOffset (mazeOffset),
-      .rnd        (worldRnd),
-      .active     (colActive),
-      .colX       (colX),
-      .gapTop     (gapTop),
-      .gapBottom  (gapBottom),
-      .scorePulse (scorePulse)
+  world_engine #(.FIRST_X(FIRST_X)) world (
+      .clk          (clk),
+      .resetN       (resetN),
+      .tickMove     (tickMove),
+      .tickCheck    (tickCheck),
+      .seedLoad     (roundStart),
+      .seed         (entropy),
+      .restart      (roundStartD),
+      .birdReset    (menuStart),
+      .birdRun      (birdRun),
+      .worldRun     (worldRun),
+      .birdMode     (inMenu ? DIFF_EASY : difficulty),
+      .columnCount  (columnCount),
+      .worldStep    (worldStep),
+      .birdY        (birdY),
+      .birdVy       (birdVy),
+      .birdTrajState(birdTrajState),
+      .colActive    (colActive),
+      .colX         (colX),
+      .gapBase      (gapBase),
+      .passPulse    (scorePulse)
   );
 
-  collision_detect collide (
-      .clk      (clk),
-      .resetN   (resetN),
-      .tickCheck(tickCheck),
-      .birdY    (birdY),
-      .active   (colActive),
-      .colX     (colX),
-      .gapTop   (gapTop),
-      .gapBottom(gapBottom),
-      .collision(collision),
-      .hitColumn(hitColumn)
+  // ---------------------------------------------------------------- player: maze, openings, collision
+  logic ctrlUp, ctrlDown;
+
+  control_mux steering (
+      .aiMode  (aiMode),
+      .kbdUp   (upHeld),
+      .kbdDown (downHeld),
+      .aiUp    (aiUp),
+      .aiDown  (aiDown),
+      .aiValid (aiValid),
+      .ctrlUp  (ctrlUp),
+      .ctrlDown(ctrlDown)
   );
 
+  lane_engine lane (
+      .clk       (clk),
+      .resetN    (resetN),
+      .tickMove  (tickMove),
+      .tickCheck (tickCheck),
+      .steerRun  (steerRun),
+      .restart   (roundStartD),
+      .moveUp    (ctrlUp),
+      .moveDown  (ctrlDown),
+      .birdY     (birdY),
+      .colActive (colActive),
+      .colX      (colX),
+      .gapBase   (gapBase),
+      .mazeOffset(mazeOffset),
+      .mazeVy    (mazeVy),
+      .gapTop    (gapTop),
+      .gapBottom (gapBottom),
+      .collision (collision),
+      .hitColumn (hitColumn)
+  );
+
+  // ---------------------------------------------------------------- score
   score_bcd scoring (
       .clk       (clk),
       .resetN    (resetN),

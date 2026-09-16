@@ -60,8 +60,12 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/key_input.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/control_mux.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/maze_control.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/bird_trajectory.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/column_track.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/gap_place.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/obstacle_manager.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/collision_detect.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/world_engine.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/lane_engine.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/score_bcd.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/world_speed_control.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/sound_engine.sv
