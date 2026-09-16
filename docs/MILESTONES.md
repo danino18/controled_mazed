@@ -9,6 +9,7 @@ Measurements are from Quartus Prime Lite 17.0.0 Build 595, full compile (`quartu
 | M2 animated bird sprite, EASY sine trajectory | 51 s | 162 (<1%) | 178 | 24,576 | 4 | 0 | +24.646 ns | in M8 build |
 | M3 scrolling coral column, geometric collision, freeze, sea floor | 61 s | 287 (<1%) | 264 | 57,344 | 8 | 0 | +24.51 ns (hold +0.17 ns) | in M8 build |
 | M4 arrow-key maze control, playable single column | 71 s | 391 (<1%) | 357 | 57,344 | 8 | 0 | +22.47 ns (hold +0.17 ns) | in M8 build |
+| M5 score + best score on VGA HUD and HEX | 74 s | 488 (1%) | 344 | 61,440 | 9 | 0 | +22.63 ns (hold +0.17 ns) | in M8 build |
 
 ## M0 — Baseline of the supplied demo
 
@@ -122,3 +123,19 @@ Design rule: any build without the audio block must keep `AUD_XCK` and `AUD_DACD
 - **Warnings (noise, not errors):**
   - `KBDINTF.qxp` carries the demo project's pin assignments. Quartus reports 36 × warning 15706 for demo nodes that don't exist here (`ADC_*`, `AUDOUT[*]`, `SW[*]`, …). Every node name shared with this design maps to the same pin.
   - Warning 12240 (imported black box) is disabled, as in `Lab1Demo.qsf`.
+
+## M5 — Score, best score, HUD, seven-segment
+
+- **Font:** `assets/fonts/font8x8.txt` is an original 8×8 bitmap font: 45 glyphs covering digits, A–Z and some punctuation, with 7×7 glyphs and bold 2-pixel stems. `tools/font_tool.tcl` turns it into `font.mif` (4,096 × 1 bit, address `{ASCII − 0x20, y, x}`).
+- **Text table:** `text_pkg` lists every text line of every screen: position, scale ×2/×4/×8, visible screens, colour, and string. Dynamic lines show the score digits, the best-score digits, or the menu cursor (`>` plus gold highlight).
+- **Renderer:** `text_draw` extends the supplied `NumbersBitMap` idea with a line → character → glyph-bit lookup, using shifts only and 3 clocks of latency.
+- **Scores:** `score_bcd` keeps the current score (the M1 `bcd_counter`) and the best score in BCD. A new best is recorded only when strictly higher, and it survives restarts. HEX2..0 show the current score and HEX5..3 the best, with leading zeros blanked. The FPS display is no longer wired, but `fps_meter` stays in the project as a debug module.
+- **Tests:**
+  - `tb_score`: counting, carries, best-score rules, and reset.
+  - `tb_text`:
+    - Table checks: every string's length matches its declared length, every line fits on screen, and no two lines on the same screen overlap.
+    - Rendering checks: digits, spaces, screen visibility, the cursor and highlight for all 9 cursor/item combinations, and NEW BEST shown only after a new best, blinking.
+- **Bug caught by `tb_text`:** `cfg.scale + 2'd3` is a 2-bit expression, so 1 + 3 wrapped to 0 and every column index was wrong. The shift amount is now 3 bits wide.
+- **Quartus 17 limitations found:**
+  - It does not accept struct fields in `localparam` expressions, so the line table uses constant wires instead.
+  - A comment that starts with the word "synthesis" is parsed as a synthesis attribute.

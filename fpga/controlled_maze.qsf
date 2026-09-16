@@ -40,6 +40,8 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/KEYBOARDX/singleKeyDecoder.sv
 # ---- project sources (packages first)
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/PKG/palette_pkg.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/PKG/game_params_pkg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/PKG/game_state_pkg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/PKG/text_pkg.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/reset_sync.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/bcd_counter.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/leading_zero_blank.sv
@@ -52,10 +54,12 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/maze_control.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/bird_trajectory.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/obstacle_manager.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/collision_detect.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/score_bcd.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/water_background.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/birdBitMap.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/bird_draw.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/coral_draw.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/text_draw.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/objects_mux_top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/hex_display_top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/TOP/game_system.sv

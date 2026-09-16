@@ -3,7 +3,7 @@
 // and codec blocks) so the whole game can be simulated.
 
 module game_system
-  import palette_pkg::*, game_params_pkg::*;
+  import palette_pkg::*, game_params_pkg::*, game_state_pkg::*;
 (
     input  logic        clk,
     input  logic        resetN,
@@ -48,6 +48,16 @@ module game_system
       .tickState   (tickState)
   );
 
+  logic [5:0] frameCount;
+  logic       blink;
+
+  always_ff @(posedge clk or negedge resetN) begin
+    if (!resetN)           frameCount <= '0;
+    else if (startOfFrame) frameCount <= frameCount + 6'd1;
+  end
+
+  assign blink = frameCount[5];
+
   // ---------------------------------------------------------------- keyboard
   logic upHeld, downHeld, upPulse, downPulse, enterPulse;
 
@@ -67,6 +77,7 @@ module game_system
   // ---------------------------------------------------------------- round control (temporary until game_fsm, M6)
   // A round starts after reset; a collision freezes the world; Enter restarts.
   logic roundStart;
+  logic roundOver;
   logic started;
   logic frozen;
   logic collision;
@@ -76,17 +87,26 @@ module game_system
       started    <= 1'b0;
       frozen     <= 1'b0;
       roundStart <= 1'b0;
+      roundOver  <= 1'b0;
     end else begin
       roundStart <= 1'b0;
+      roundOver  <= 1'b0;
       if ((tickState && !started) || (frozen && enterPulse)) begin
         started    <= 1'b1;
         roundStart <= 1'b1;
         frozen     <= 1'b0;
-      end else if (tickState && collision) begin
-        frozen <= 1'b1;
+      end else if (tickState && collision && !frozen) begin
+        frozen    <= 1'b1;
+        roundOver <= 1'b1;
       end
     end
   end
+
+  logic       worldRun;
+  logic [2:0] screen;
+
+  assign worldRun = started && !frozen;
+  assign screen   = frozen ? ST_HIT : ST_PLAY;
 
   // ---------------------------------------------------------------- game logic
   logic [15:0] rnd;
@@ -108,16 +128,15 @@ module game_system
       .clk      (clk),
       .resetN   (resetN),
       .tick     (tickMove),
-      .run      (started && !frozen),
+      .run      (worldRun),
       .restart  (roundStart),
-      .mode     (2'd0),
+      .mode     (DIFF_EASY),
       .rnd      (rnd),
       .birdY    (birdY),
       .birdVy   (birdVy),
       .trajState(birdTrajState)
   );
 
-  // ---------------------------------------------------------------- maze steering
   logic ctrlUp, ctrlDown;
   logic signed [9:0] mazeOffset;
   logic signed [4:0] mazeVy;
@@ -137,7 +156,7 @@ module game_system
       .clk       (clk),
       .resetN    (resetN),
       .tick      (tickMove),
-      .run       (started && !frozen),
+      .run       (worldRun),
       .restart   (roundStart),
       .moveUp    (ctrlUp),
       .moveDown  (ctrlDown),
@@ -157,7 +176,7 @@ module game_system
       .resetN     (resetN),
       .tickMove   (tickMove),
       .tickCheck  (tickCheck),
-      .run        (started && !frozen),
+      .run        (worldRun),
       .restart    (roundStart),
       .columnCount(2'd1),
       .worldStep  (12'(WORLD_STEP_DEFAULT)),
@@ -183,6 +202,21 @@ module game_system
       .hitColumn(hitColumn)
   );
 
+  logic [2:0][3:0] score;
+  logic [2:0][3:0] best;
+  logic            newBest;
+
+  score_bcd scoring (
+      .clk       (clk),
+      .resetN    (resetN),
+      .clearScore(roundStart),
+      .addPoint  (scorePulse),
+      .commitBest(roundOver),
+      .score     (score),
+      .best      (best),
+      .newBest   (newBest)
+  );
+
   // ---------------------------------------------------------------- drawing
   color_t waterRGB;
 
@@ -192,22 +226,6 @@ module game_system
       .pixelX(pixelX),
       .pixelY(pixelY),
       .RGBout(waterRGB)
-  );
-
-  logic   birdDR;
-  color_t birdRGB;
-
-  bird_draw birdDraw (
-      .clk           (clk),
-      .resetN        (resetN),
-      .pixelX        (pixelX),
-      .pixelY        (pixelY),
-      .birdY         (birdY),
-      .tick          (tickMove),
-      .animate       (!frozen),
-      .blink         (frozen),
-      .drawingRequest(birdDR),
-      .RGBout        (birdRGB)
   );
 
   logic   coralDR;
@@ -226,39 +244,65 @@ module game_system
       .RGBout        (coralRGB)
   );
 
+  logic   birdDR;
+  color_t birdRGB;
+
+  bird_draw birdDraw (
+      .clk           (clk),
+      .resetN        (resetN),
+      .pixelX        (pixelX),
+      .pixelY        (pixelY),
+      .birdY         (birdY),
+      .tick          (tickMove),
+      .animate       (!frozen),
+      .blink         (frozen),
+      .drawingRequest(birdDR),
+      .RGBout        (birdRGB)
+  );
+
+  logic   textDR;
+  color_t textRGB;
+
+  text_draw text (
+      .clk           (clk),
+      .resetN        (resetN),
+      .pixelX        (pixelX),
+      .pixelY        (pixelY),
+      .screen        (screen),
+      .menuCursor    (2'd0),
+      .scoreDigits   (score),
+      .bestDigits    (best),
+      .newBest       (newBest),
+      .blink         (blink),
+      .drawingRequest(textDR),
+      .RGBout        (textRGB)
+  );
+
   objects_mux_top mux (
-      .clk               (clk),
-      .resetN            (resetN),
-      .birdDrawingRequest(birdDR),
-      .birdRGB           (birdRGB),
+      .clk                (clk),
+      .resetN             (resetN),
+      .textDrawingRequest (textDR),
+      .textRGB            (textRGB),
+      .birdDrawingRequest (birdDR),
+      .birdRGB            (birdRGB),
       .coralDrawingRequest(coralDR),
       .coralRGB           (coralRGB),
-      .backgroundRGB     (waterRGB),
-      .RGBOut            (screenRGB)
+      .backgroundRGB      (waterRGB),
+      .RGBOut             (screenRGB)
   );
 
   // ---------------------------------------------------------------- indicators
-  logic [2:0][3:0] fpsBcd;
-  logic [2:0]      fpsDigitOn;
-  logic [5:0]      frameCount;
+  // HEX2..HEX0 = current score, HEX5..HEX3 = best score, leading zeros blanked.
+  logic [2:0] scoreOn, bestOn;
 
-  fps_meter #(.CLOCKS_PER_SECOND(CLOCKS_PER_SECOND)) fpsMeter (
-      .clk         (clk),
-      .resetN      (resetN),
-      .startOfFrame(startOfFrame),
-      .fpsBcd      (fpsBcd)
-  );
-
-  leading_zero_blank #(.DIGITS(3)) fpsBlank (
-      .digits (fpsBcd),
-      .digitOn(fpsDigitOn)
-  );
+  leading_zero_blank #(.DIGITS(3)) scoreBlank (.digits(score), .digitOn(scoreOn));
+  leading_zero_blank #(.DIGITS(3)) bestBlank  (.digits(best),  .digitOn(bestOn));
 
   hex_display_top hex (
       .clk    (clk),
       .resetN (resetN),
-      .digits ({12'h000, fpsBcd}),
-      .digitOn({3'b000, fpsDigitOn}),
+      .digits ({best, score}),
+      .digitOn({bestOn, scoreOn}),
       .HEX0   (HEX0),
       .HEX1   (HEX1),
       .HEX2   (HEX2),
@@ -267,15 +311,7 @@ module game_system
       .HEX5   (HEX5)
   );
 
-  always_ff @(posedge clk or negedge resetN) begin
-    if (!resetN) begin
-      frameCount <= '0;
-    end else if (startOfFrame) begin
-      frameCount <= frameCount + 6'd1;
-    end
-  end
-
   // LEDR[0] is driven by the board top level (PLL locked).
-  assign LEDR = {frameCount[5], 6'b0, frozen, resetN, 1'b0};
+  assign LEDR = {blink, 6'b0, frozen, resetN, 1'b0};
 
 endmodule
