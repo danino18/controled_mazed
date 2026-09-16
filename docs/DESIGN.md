@@ -2,7 +2,13 @@
 
 ## Context
 
-Technion EE final lab project (044157, summer 2026), Controlled Maze variant. The bird is autonomous and moves only vertically at a fixed X. The **player controls the vertical position of the coral obstacles**, and all controlled columns move together as one system. The target board is a Cyclone V `5CSXFC6D6F31C6` (DE10-Standard class), reusing the supplied lab infrastructure from `qar_files_from_labs/VGA_DEMO_Students.qar` and `KBD09091201.qar`. ML is deliberately deferred until the base game is complete, but the architecture must not block on-chip training later.
+Technion EE final lab project (044157, summer 2026), Controlled Maze variant. The bird is autonomous and moves only vertically at a fixed X. The **player controls the vertical position of the coral obstacles**, and all controlled columns move together as one system. The design reuses the supplied lab infrastructure from `qar_files_from_labs/VGA_DEMO_Students.qar` and `KBD09091201.qar`. From M9 on, an AI that is trained on the FPGA itself can play the same game (section L).
+
+**Board device** (checked 2026-09-16 with `jtagconfig` on `DE-SoC [USB-1]`):
+- The FPGA is JTAG device 2 with IDCODE `02D020DD`, which Quartus lists as "5CSEBA6(.|ES)/5CSEMA6/..". That IDCODE covers the whole Cyclone V SoC A6/C6 die family (110K LE). The fabric budget is therefore 41,910 ALMs, 553 M10K blocks and 112 DSP blocks, whichever part name is used.
+- The project was built as `5CSXFC6D6F31C6`. Quartus 17 offers 5CSEBA6 only in U19/U23 packages, while this board's pins (for example `AK29`) exist only in the F31 package.
+- A scratch copy compiled as `5CSEMA6F31C6` (the same die in F31, SE family) gave identical resources, identical timing and an identical assignment for every design pin; only 18 transceiver no-connect pins differ.
+- The project's `DEVICE` setting changes only after that scratch build has also been checked on the board (decision D1, M9).
 
 Approved by the team on 2026-09-16. Changes to this design are recorded in the relevant section and in `docs/MILESTONES.md`.
 
@@ -158,11 +164,9 @@ collision    = |(enable & x_overlap & outside)
 | Rendering | `birdBitMap`, `bird_draw`, `coral_draw`, `water_background`, `bubble_field`, `glyph_rom`, `text_draw`, `digit_field_draw`, `objects_mux_top`, `hex_display_top` |
 | ML and shared definitions | `ml_feature_extract`, `game_state_pkg`, `palette_pkg` |
 
-## K. ML-ready interfaces (defined now, unused)
+## K. ML-ready interfaces
 
-- `game_state_pkg` exposes `bird_y`, `bird_vy`, `traj_state`, `next_obst_dx`, `next_obst_gap_y`, `dy_error`, `maze_y_offset`, `world_step`, `difficulty`, `obstacle_count`, `score_bcd`, `collision`, `game_state`, and `frame_tick`.
-- `control_mux` already has the `ai_up`, `ai_down`, `ai_valid`, and `ai_mode` ports.
-- `ml_feature_extract` has been postponed to M13. `game_logic` already outputs every signal it needs (bird Y/Vy/state, maze offset, column X, opening edges, collision, score).
+Superseded in M9 by section L: `game_logic` exports every signal the AI needs (bird Y/speed, column X, opening bases and edges, maze offset and speed, world speed), and the AI steers through `control_mux` only while the game is in PLAY.
 
 ## Implementation notes (M2–M8)
 
@@ -170,20 +174,61 @@ collision    = |(enable & x_overlap & outside)
 - **Frame order:** each frame's update is split into `tickMove` → `tickCheck` → `tickState`, one clock apart, during vertical blanking.
 - **Drawing layers** all have a 3-clock latency and are merged, front to back, as text → panels → bird → coral → water and sand.
 - **Asset sources:** `assets/sprites/*.txt` and `assets/fonts/font8x8.txt` are the sources, converted by `tools/sprite_tool.tcl` and `tools/font_tool.tcl` (`quartus_sh -t`). `tools/ppm2png.pl` turns simulated VGA frames into PNGs.
-- **Randomness:** the supplied `random.sv` latches a counter on each Enter press. That value seeds two 16-bit leap-forward LFSRs (16 steps per frame), one for the coral and one for the bird.
+- **Randomness:** the supplied `random.sv` latches a counter on each key press (on each Enter press before M9). That value seeds two 16-bit leap-forward LFSRs (16 steps per frame), one for the coral and one for the bird.
 - **Tuned bird motion:**
   - MEDIUM: a decision every 24 frames, 2.5 px/frame, 16/64 px per frame² acceleration.
   - HARD: pursuit gain 1/8, 6..37-frame dwell, 3.75 px/frame, 32/64 px per frame² acceleration, ±4/64 px jitter.
 - **Timing setting:** `OPTIMIZE_HOLD_TIMING` is `ALL PATHS`, because the supplied `OFF` setting left a −51 ps hold violation on the pipeline registers.
 - **Not yet built** (later milestones): `world_speed` (SW[2:0], M9), audio and `sound_arbiter` (M10), parallax, bubbles and seaweed (M11), `menu_controller` (folded into `game_fsm`), `glyph_rom`/`digit_field_draw` (folded into `text_draw`), `game_controller`-style per-pixel debug collision (optional).
 
-## L. On-fabric training — preliminary (unchanged, now strengthened)
+## L. On-fabric training and the AI player (approved 2026-09-16; full proposal in the session plan)
 
-- **Size:** 4→4→1 = 25 weights; a population of 32 at 16 bits is 12.8 Kb (one M10K). Inference is 20 MACs on one DSP.
-- **Throughput:** about 117 ms per generation in the worst case, so 100 generations take ≈12 s (~8,000× real time). The estimated cost is 1–4 DSP, 1–2 M10K, and ~1–3K ALM.
-- **Neuroevolution rather than backprop:** there is no labeled data, fixed-point gradients underflow, and neuroevolution reuses the inference datapath.
-- **Why decision 1 helps:** geometric collision is what makes it possible to re-instantiate the *same* game-logic modules inside a fast headless simulator.
-- **Measurements needed before committing:** base-game ALM/M10K/DSP headroom, base-game compile time, measured frame rate, and the number of generations needed.
+**Goal.** The AI is trained on the FPGA itself. Eight candidates are evaluated in parallel, and the VGA shows those exact simulations. The best network then plays the normal game. Modes: **HUMAN PLAY / TRAIN AI / WATCH AI**.
+
+**Decisions (user, 2026-09-16)**
+- **D1:** try the `DEVICE` change only in a scratch copy first (see Context).
+- **D2:** KEY0 resets the game and any training run, but keeps an AI that training already committed.
+- **D3:** training worlds change every generation. All candidates of one generation play the same two worlds. The champion is chosen on 4 fixed validation worlds, and the final champion is reported once on 8 unseen test worlds.
+- **D4:** the speed ramp, animated background, parallax and final polish move to M13–M14.
+- **D5:** KEY1 = back / pause, SW1 = AI debug overlay. During TRAIN AI, Numpad 4/6 change only the simulation speed.
+
+**Game split (M9).**
+- `world_engine` holds everything the player cannot influence: `bird_trajectory`, both LFSRs, and `column_track` (column motion, openings, passes).
+- `lane_engine` holds the player's part: `maze_control`, `gap_place` (the offset clamp) and `collision_detect`.
+- `game_logic` uses one of each. The trainer will use one `world_engine` shared by all lanes, which is exact because the world ignores the player, and one `lane_engine` per lane. Training and the visible game therefore use the same rule modules.
+- `tb_golden` proves the split changed nothing. It compares per-change hashes of every output, recorded before the split.
+- A round restarts one clock after its seed is loaded, so it is a pure function of the seed. Before this change, the first openings came from the previous LFSR state.
+
+**Network (M9).**
+- **Inputs:** `feature_world` computes the shared inputs once per step; `feature_lane` computes the per-player ones. The four inputs (int8, Q1.6), all computed from on-screen columns only:
+  1. next opening error;
+  2. the following opening's error;
+  3. relative vertical speed (maze − bird);
+  4. frames until the next column arrives (speed-independent).
+- **Layers:** a 4→6 hard-tanh layer, then one output with a ±0.25 dead zone that gives UP/HOLD/DOWN.
+- **Genes:** 37 signed 8-bit genes (weights Q2.5). Hidden neuron j uses genes 5j..5j+4 as [bias, w0..w3]; the output uses genes 30..36.
+- **Arithmetic:** 18-bit accumulator; it provably cannot overflow.
+- **Evaluation:** `nn_sched` + `nn_datapath` evaluate the network serially in 39 clocks. Several datapaths can share one scheduler and one memory read.
+- **Actions:** they drive the same `maze_control` inputs as Numpad 8/2, and only in PLAY. The 1→4 px/frame ramp therefore applies to the AI exactly as to a human.
+
+**WATCH AI (M9).**
+- `ai_player` evaluates the network once per frame, right after the game update, from its weight memory. That memory is a single-port M10K, In-System Memory Content Editor name `WTCH`.
+- M9 ships a hand-set PD controller (`assets/nn/demo_net.txt`), so WATCH goes through the normal menus. From M12 it will use the trained champion with the trained settings.
+
+**Text screens (M9).**
+- `char_screen` draws the menus, overlays and (from M10) the training screen from `assets/screens/screens.txt`, converted by `tools/screen_tool.tcl`.
+- Each page is an 80×60 grid of 8×8 cells, or 40×30 of 16×16. Cells are {panel, colour, glyph}, and there are dynamic fields (DEC, DECB, SDEC, HEX, WORD, CURSOR).
+- Once per frame, during vertical blanking, a writer formats the values into a character RAM, so every visible frame shows one consistent set of values.
+- This replaces growing `text_pkg` (Quartus 17 crashes at 23 lines).
+
+**Training engine (M10–M12, planned).**
+- **Lanes:** 8 real lanes. The lanes share one world; each lane has its own maze, collision, NN datapath (1 DSP), counters and death snapshot.
+- **Population:** 64 candidates, so 8 batches per generation. Each candidate plays world A_g and world B_g.
+- **Fitness:** gates × 65,536 + Σ(survival steps + well-centred steps), a 26-bit value.
+- **Evolution:** tournament selection (K = 4), neuron-block crossover, mutation whose strength adapts to stagnation, and 2 elites.
+- **Validation:** after each generation, the top 8 play the 4 fixed validation worlds; the champion is the best validation score ever seen.
+- **Display:** the VGA shows atomic per-frame snapshots of the eight lanes (window k = lane k). A free-running step divider (SIM ×1 … MAX) sets the simulation speed and never waits for the video.
+- **Estimated size:** ~16% ALM, 11 DSP, 58 M10K for the whole design.
 
 ## M. Risks
 
@@ -213,9 +258,11 @@ Each milestone compiles, runs, is committed to Git, and is archived as `.qar`. T
 | M6 | Glyph ROM, `text_draw`, both menus, full `game_fsm`, RESTART/MAIN MENU | TB: `game_fsm` (report module #1) |
 | M7 | 2 and 3 columns via `obstacle_manager` | Multi-column collision and score TB |
 | M8 | MEDIUM + HARD + `lfsr_rng` | TB: `bird_trajectory` bounds over long random runs (report module #2) |
-| M9 | SW[2:0] speed + ramp + cheat/turbo/mute/pause | Live switch check |
-| M10 | Audio: `songs.mif` + `sound_arbiter` | Listen on board |
-| M11 | Final art, parallax, bubbles, shimmer; re-measure resources | Compile under 10 min |
-| M12 | SignalTap captures, docs, resource report | **Base game complete** |
-| M13–M14 | `ml_feature_extract` + fixed-point inference; AI mode with hand-set weights | AI plays via `control_mux` |
-| M15–M17 | Headless simulator reusing game modules; on-fabric GA; on-chip training demo | Fitness rises; best net drives live play |
+| — | *(as built after M8: Numpad 4/6 world speed, score and failure sounds; SW0 mute)* | Board check |
+| M9 | World/lane split, seed-then-restart, fixed-point network and features, text-screen engine, mode menu, WATCH AI with a hand-set network, KEY1/SW1 | `tb_golden`, `tb_nn`, `tb_features`, `tb_char_screen`, `tb_mode_fsm`, `tb_watch`; board |
+| M10 | 8 parallel evaluation lanes, step throttle, fitness, batch scheduler with a fixed population, training screen v1 | Lane-equivalence and independence TBs; 8 real candidates on VGA |
+| M11 | Genetic algorithm, per-generation worlds, validation and champion, final test, learning chart | GA unit TBs, mini-generation TB; learning curves measured on the board |
+| M11b | GA tuning (only if M11 measurements require it) | Measured |
+| M12 | TRAIN → COMPLETE → WATCH flow, pause/stop, persistence, debug/HEX/LED, docs | Train-flow TB (replay reproduces scores); full demo |
+| M13 | Dynamic difficulty: speed ramp and obstacle rate (spec 90 tier); training inherits it through `world_engine` | TBs; board |
+| M14 | Animated background, parallax, final art and polish, final report | Board |

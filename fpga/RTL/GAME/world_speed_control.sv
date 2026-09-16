@@ -21,6 +21,8 @@ module world_speed_control
     input  logic       tick,          // once per frame
     input  logic       speedUpHeld,
     input  logic       speedDownHeld,
+    input  logic       load,          // set the level directly (WATCH AI: the trained speed)
+    input  logic [2:0] loadLevel,
     output logic [2:0] speedLevel,    // 0..7, for the on-screen readout
     output logic [11:0] worldStep     // 1/64 px per frame, feeds obstacle_manager
 );
@@ -33,6 +35,9 @@ module world_speed_control
   always_ff @(posedge clk or negedge resetN) begin
     if (!resetN) begin
       speedLevel <= 3'(WORLD_SPEED_LEVEL_RESET);
+      holdFrames <= '0;
+    end else if (load) begin
+      speedLevel <= loadLevel;
       holdFrames <= '0;
     end else if (tick) begin
       if (exactlyOne) begin

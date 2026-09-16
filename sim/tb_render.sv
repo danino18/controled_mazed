@@ -5,6 +5,7 @@
 //
 //   +shots=<frame>,<frame>,...   save the listed frames (no key presses)
 //   +scenario=tour               play through every screen with scripted keys
+//   +scenario=watch              WATCH AI with the demo network (SW1 debug overlay on)
 //   +difficulty=<0..2>           difficulty chosen in the tour (default 1)
 //   +columns=<1..3>              coral columns chosen in the tour (default 3)
 // Timers and the first coral position are shortened so a tour takes ~100 frames.
@@ -21,6 +22,8 @@ module tb_render;
   logic        keyMake = 1'b0;
   logic        keyBreak = 1'b0;
   logic        muteSw = 1'b0;
+  logic        debugSw = 1'b0;
+  logic        backN = 1'b1;
   logic [28:0] ovga;
   logic [6:0]  hex0, hex1, hex2, hex3, hex4, hex5;
   logic [9:0]  ledr;
@@ -28,7 +31,7 @@ module tb_render;
 
   game_system dut (
       .clk(clk), .resetN(resetN), .keyCode(keyCode), .keyMake(keyMake), .keyBreak(keyBreak),
-      .muteSw(muteSw),
+      .muteSw(muteSw), .debugSw(debugSw), .backN(backN),
       .OVGA(ovga), .HEX0(hex0), .HEX1(hex1), .HEX2(hex2), .HEX3(hex3), .HEX4(hex4), .HEX5(hex5),
       .LEDR(ledr), .audioSample(audioSample));
 
@@ -36,6 +39,7 @@ module tb_render;
   defparam dut.gameLogic.HIT_FRAMES       = 10;
   defparam dut.gameLogic.OVER_LOCK_FRAMES = 2;
   defparam dut.gameLogic.FIRST_X          = 250;
+  defparam dut.BUTTON_STABLE_CLOCKS         = 20;
 
   localparam logic [8:0] KEY_UP = 9'h175, KEY_DOWN = 9'h172, KEY_ENTER = 9'h05A;
 
@@ -96,7 +100,10 @@ module tb_render;
     if (!$value$plusargs("difficulty=%d", difficulty)) difficulty = 1;
     if (!$value$plusargs("columns=%d", columns)) columns = 3;
 
-    wait_frames(2);
+    wait_frames(3);
+    capture("tour_0_mode_menu.ppm");
+    press(KEY_ENTER);                        // HUMAN PLAY
+    wait_frames(1);
     capture("tour_1_menu_difficulty.ppm");
     repeat (difficulty) press(KEY_DOWN);
     press(KEY_ENTER);
@@ -121,8 +128,45 @@ module tb_render;
     press(KEY_DOWN);
     capture("tour_7_game_over_main_menu.ppm");
     press(KEY_ENTER);
-    wait_frames(2);
-    capture("tour_8_back_to_menu.ppm");
+    wait_frames(3);
+    capture("tour_8_back_to_mode_menu.ppm");
+    // TRAIN AI setup and the placeholder page, NO TRAINED AI is covered by tb_mode
+    press(KEY_DOWN);
+    press(KEY_ENTER);
+    wait_frames(3);
+    capture("tour_9_train_setup.ppm");
+    press(KEY_ENTER);
+    press(KEY_DOWN);
+    press(KEY_ENTER);
+    wait_frames(3);
+    capture("tour_10_train_placeholder.ppm");
+    press(KEY_ENTER);
+  endtask
+
+  task automatic watch();
+    wait_frames(3);
+    press(KEY_DOWN);
+    press(KEY_DOWN);
+    capture("watch_1_mode_menu.ppm");
+    press(KEY_ENTER);                        // WATCH AI (demo network)
+    press(KEY_DOWN);                         // MEDIUM
+    press(KEY_ENTER);
+    press(KEY_DOWN);                         // 2 corals
+    press(KEY_ENTER);
+    wait (dut.screen == ST_PLAY);
+    wait_frames(150);
+    capture("watch_2_ai_playing.ppm");
+    debugSw = 1'b1;
+    wait_frames(60);
+    capture("watch_3_ai_debug.ppm");
+    if (dut.screen != ST_PLAY) $display("FAIL: the demo network crashed within 210 frames");
+    // KEY1 goes back to the mode menu
+    backN = 1'b0;
+    repeat (100) @(negedge clk);
+    backN = 1'b1;
+    wait_frames(3);
+    capture("watch_4_back_to_mode_menu.ppm");
+    if (dut.mode != 0) $display("FAIL: KEY1 did not return to the mode menu");
   endtask
 
   initial begin
@@ -136,6 +180,8 @@ module tb_render;
 
     if ($value$plusargs("scenario=%s", scenario) && scenario == "tour") begin
       tour();
+    end else if (scenario == "watch") begin
+      watch();
     end else begin
       if (!$value$plusargs("shots=%s", shots)) shots = "2";
       pos = 0;

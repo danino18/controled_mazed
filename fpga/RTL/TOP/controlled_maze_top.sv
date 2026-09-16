@@ -9,6 +9,8 @@ module controlled_maze_top (
     input  logic        PS2_CLK,
     input  logic        PS2_DAT,
     input  logic        SW0,            // global mute (audio only)
+    input  logic        SW1,            // AI debug overlay
+    input  logic        backN_pin,      // KEY[1], active low: back / pause
     output logic [9:0]  LEDR,
     output logic [6:0]  HEX0,
     output logic [6:0]  HEX1,
@@ -71,6 +73,8 @@ module controlled_maze_top (
       .keyMake    (keyMake),
       .keyBreak   (keyBreak),
       .muteSw     (SW0),
+      .debugSw    (SW1),
+      .backN      (backN_pin),
       .OVGA       (OVGA),
       .HEX0       (HEX0),
       .HEX1       (HEX1),

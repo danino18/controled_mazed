@@ -30,12 +30,24 @@ module game_logic
     input  logic                         enterPulse,
     input  logic                         speedUpHeld,
     input  logic                         speedDownHeld,
+    input  logic                         entropyPulse,   // any key press: latches the random seed
 
-    // AI steering (see control_mux)
+    // AI steering (see control_mux); the AI only steers in PLAY, so every
+    // round starts from a centred maze exactly as in on-chip training
     input  logic                         aiMode,
     input  logic                         aiUp,
     input  logic                         aiDown,
     input  logic                         aiValid,
+
+    // mode control (mode_fsm)
+    input  logic                         trainMode,      // the menus choose the training world
+    input  logic                         autoStart,      // start a round with the settings below
+    input  logic [1:0]                   autoDifficulty,
+    input  logic [1:0]                   autoColumns,
+    input  logic                         abort,          // back to the first menu
+    input  logic                         speedLoad,      // set the world speed level
+    input  logic [2:0]                   speedLoadLevel,
+    output logic                         trainStart,     // one clock: training world chosen
 
     // game flow
     output logic [2:0]                   screen,
@@ -90,6 +102,11 @@ module game_logic
       .downPulse  (downPulse),
       .enterPulse (enterPulse),
       .collision  (collision),
+      .trainMode  (trainMode),
+      .autoStart  (autoStart),
+      .autoDifficulty(autoDifficulty),
+      .autoColumns(autoColumns),
+      .abort      (abort),
       .state      (screen),
       .difficulty (difficulty),
       .columnCount(columnCount),
@@ -97,7 +114,8 @@ module game_logic
       .stateFrames(stateFrames),
       .roundStart (roundStart),
       .roundOver  (roundOver),
-      .menuStart  (menuStart)
+      .menuStart  (menuStart),
+      .trainStart (trainStart)
   );
 
   // The round restarts one clock after the seeds are loaded, so the first coral
@@ -118,7 +136,7 @@ module game_logic
   assign birdRun  = worldRun || inMenu;                               // the bird bobs behind the menus
 
   // ---------------------------------------------------------------- randomness
-  // The supplied random.sv latches a free-running counter when Enter is pressed;
+  // The supplied random.sv latches a free-running counter on every key press;
   // human timing makes that value unpredictable, so it seeds the world at the
   // start of every round.
   logic [15:0] entropy;
@@ -126,7 +144,7 @@ module game_logic
   random #(.SIZE_BITS(16), .MIN_VAL(16'h0000), .MAX_VAL(16'hFFFF)) entropySource (
       .clk   (clk),
       .resetN(resetN),
-      .rise  (enterPulse),
+      .rise  (entropyPulse),
       .dout  (entropy)
   );
 
@@ -139,6 +157,8 @@ module game_logic
       .tick         (tickMove),
       .speedUpHeld  (speedUpHeld),
       .speedDownHeld(speedDownHeld),
+      .load         (speedLoad),
+      .loadLevel    (speedLoadLevel),
       .speedLevel   (speedLevel),
       .worldStep    (worldStep)
   );
@@ -178,7 +198,7 @@ module game_logic
       .kbdDown (downHeld),
       .aiUp    (aiUp),
       .aiDown  (aiDown),
-      .aiValid (aiValid),
+      .aiValid (aiValid && worldRun),
       .ctrlUp  (ctrlUp),
       .ctrlDown(ctrlDown)
   );

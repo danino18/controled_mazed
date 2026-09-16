@@ -45,12 +45,16 @@ fi
 status=0
 for tb in $TESTS; do
   # shellcheck disable=SC2086
-  result=$("$MODELSIM/vsim" -c -quiet -L lpm_ver work."$tb" $PLUSARGS -do "run -all; quit -f" 2>&1)
+  result=$("$MODELSIM/vsim" -c -quiet -L lpm_ver -L altera_mf_ver work."$tb" $PLUSARGS -do "run -all; quit -f" 2>&1)
   echo "$result" | grep -E "^# (PASS|FAIL|INFO|\*\* (Error|Fatal))" | sed 's/^# //'
-  echo "$result" | grep -q "^# PASS: $tb" || status=1
+  if ! echo "$result" | grep -q "^# PASS: $tb"; then
+    status=1
+    echo "FAIL: $tb ended without a PASS line; last output:"
+    echo "$result" | tail -5
+  fi
 done
 
-for ppm in frame_*.ppm tour_*.ppm; do
+for ppm in frame_*.ppm tour_*.ppm watch_*.ppm; do
   [ -f "$ppm" ] || continue
   perl "$ROOT/tools/ppm2png.pl" "$ppm" "${ppm%.ppm}.png"
 done

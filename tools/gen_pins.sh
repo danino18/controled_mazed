@@ -37,6 +37,8 @@ for group in "$@"; do
                AK19 AK18 AJ22 AK22 AK21 ;;
     ps2)   pin PS2_CLK AB25; pin PS2_DAT AA25 ;;
     sw0)   pin SW0 AB30 ;;
+    sw1)   pin SW1 Y27 ;;          # SW[1] in the supplied pin.tcl
+    key1)  pin backN_pin AK4 ;;    # KEY[1] in the supplied pin.tcl
     # Full WM8731-class codec I/O (supplied pin.tcl): AUDIN[1]=ADCLRCK,
     # AUDIN[2]=BCLK (codec drives these); AUDOUT[4]=DACDAT, AUDOUT[5]=XCK,
     # AUDOUT[6]=I2C_SCLK, AUDOUT[7]=I2C_SDAT (FPGA drives/shares these).

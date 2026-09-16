@@ -49,11 +49,13 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/PKG/palette_pkg.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/PKG/game_params_pkg.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/PKG/game_state_pkg.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/PKG/text_pkg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/PKG/ui_pkg.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/ml_pkg.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/reset_sync.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/bcd_counter.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/leading_zero_blank.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/lfsr_rng.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/button_pulse.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DEBUG/fps_meter.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/frame_sequencer.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/game_fsm.sv
@@ -75,6 +77,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/feature_world.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/feature_lane.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/nn_sched.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/nn_datapath.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/ai_player.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/water_background.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/birdBitMap.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/bird_draw.sv
@@ -84,6 +87,8 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/speed_readout.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/ui_panels.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/objects_mux_top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/hex_display_top.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/UI/char_screen.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/UI/mode_fsm.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/TOP/game_system.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/TOP/controlled_maze_top.sv
 
@@ -282,3 +287,9 @@ set_location_assignment PIN_Y24 -to AUD_I2C_SCLK
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AUD_I2C_SCLK
 set_location_assignment PIN_Y23 -to AUD_I2C_SDAT
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AUD_I2C_SDAT
+# ---- sw1
+set_location_assignment PIN_Y27 -to SW1
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SW1
+# ---- key1
+set_location_assignment PIN_AK4 -to backN_pin
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to backN_pin

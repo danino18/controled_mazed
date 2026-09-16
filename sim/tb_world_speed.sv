@@ -2,6 +2,7 @@
 // Numpad 6 (speedDownHeld) decreases it, bounds are never exceeded (never
 // zero/negative worldStep), holding both makes no change, releasing leaves
 // the level exactly where it was, and the step cadence matches the design.
+// load sets the level directly (WATCH AI) and restarts the hold count.
 `timescale 1ns / 1ps
 
 module tb_world_speed;
@@ -12,12 +13,14 @@ module tb_world_speed;
   always #5 clk = ~clk;
 
   logic       tick = 1'b0, speedUpHeld = 1'b0, speedDownHeld = 1'b0;
+  logic       load = 1'b0;
+  logic [2:0] loadLevel = 3'd0;
   logic [2:0] speedLevel;
   logic [11:0] worldStep;
 
   world_speed_control dut (
       .clk(clk), .resetN(resetN), .tick(tick), .speedUpHeld(speedUpHeld),
-      .speedDownHeld(speedDownHeld), .speedLevel(speedLevel), .worldStep(worldStep));
+      .speedDownHeld(speedDownHeld), .load(load), .loadLevel(loadLevel), .speedLevel(speedLevel), .worldStep(worldStep));
 
   int errors = 0;
 
@@ -138,6 +141,30 @@ module tb_world_speed;
     prevLevel = speedLevel;
     repeat (10 * WORLD_SPEED_STEP_FRAMES) frame();
     if (speedLevel != prevLevel) fail("level drifted while neither key was held");
+
+    // ---------------------------------------------------------------- load
+    for (int l = 0; l < 8; l++) begin
+      @(negedge clk);
+      load = 1'b1;
+      loadLevel = 3'(l);
+      @(negedge clk);
+      load = 1'b0;
+      if (speedLevel != l) fail($sformatf("load %0d gave level %0d", l, speedLevel));
+      if (worldStep != expected_step(l)) fail($sformatf("load %0d: worldStep %0d", l, worldStep));
+    end
+    // a load in the middle of a hold restarts the step count
+    speedUpHeld = 1'b1;
+    repeat (WORLD_SPEED_STEP_FRAMES - 2) frame();
+    @(negedge clk);
+    load = 1'b1;
+    loadLevel = 3'd3;
+    @(negedge clk);
+    load = 1'b0;
+    repeat (WORLD_SPEED_STEP_FRAMES - 1) frame();
+    if (speedLevel != 3) fail("a load did not restart the hold count");
+    frame();
+    if (speedLevel != 4) fail("hold after a load did not step on time");
+    speedUpHeld = 1'b0;
 
     if (errors == 0) $display("PASS: tb_world_speed");
     else             $display("FAIL: tb_world_speed (%0d errors)", errors);

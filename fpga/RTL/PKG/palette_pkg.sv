@@ -39,6 +39,9 @@ package palette_pkg;
   localparam color_t C_TEXT_CYAN   = {3'd5, 3'd7, 2'd3};
   localparam color_t C_TEXT_DIM    = {3'd4, 3'd5, 2'd3};
   localparam color_t C_TEXT_RED    = {3'd7, 3'd1, 2'd1};
+  localparam color_t C_TEXT_GREEN  = {3'd2, 3'd7, 2'd1};
+  localparam color_t C_TEXT_GREY   = {3'd3, 3'd3, 2'd1};
+  localparam color_t C_TEXT_AMBER  = {3'd7, 3'd5, 2'd0};
 
   // Panels.
   localparam color_t C_PANEL       = {3'd0, 3'd0, 2'd1};   // drawn on every other pixel

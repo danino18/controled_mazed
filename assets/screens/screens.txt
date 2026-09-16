@@ -1,0 +1,194 @@
+# Text screens drawn by char_screen (menus, AI overlays, training screens).
+# Convert with:
+#   quartus_sh -t tools/screen_tool.tcl assets/screens/screens.txt assets/fonts/font8x8.txt fpga/RTL build/screens.html
+# Format: see tools/screen_tool.tcl. Colours: 0 white, 1 gold, 2 cyan, 3 dim,
+# 4 red, 5 green, 6 grey, 7 amber; a..h = the same colour on a dark panel.
+
+# ---- dynamic values (order = source number)
+source MODE_CURSOR
+source NOAI_CURSOR
+source AI_ACTION
+source AI_F0
+source AI_F1
+source AI_F2
+source AI_F3
+source AI_H0
+source AI_Y
+source WORLD_SPEED
+source TRAIN_DIFF
+source TRAIN_CORALS
+source TRAIN_SPEED
+
+# ---- word lists (value 0, 1, 2 ...)
+words ACTION HOLD=3 DOWN=7 UP__=5
+words DIFF EASY__=5 MEDIUM=7 HARD__=4
+
+# ---- page MODE
+page MODE 2
+~2
+            CONTROLLED MAZE
+~2
+              SELECT MODE
+~3
+               HUMAN PLAY
+~2
+               TRAIN AI
+~2
+               WATCH AI
+~5
+             DEMO AI NETWORK LOADED
+~2
+      8/2 SELECT    ENTER CONFIRM
+       KEY1 BACK FROM ANY SCREEN
+~4
+attr
+~2
+..........bbbbbbbbbbbbbbbbbbbb
+~2
+............cccccccccccccccc
+~2
+............dddddddddddddddddddddd
+............dddddddddddddddddddddd
+............dddddddddddddddddddddd
+............dddddddddddddddddddddd
+............dddddddddddddddddddddd
+............dddddddddddddddddddddd
+............dddddddddddddddddddddd
+............dddddddddddddddddddddd
+............dddddddddddddddddddddd
+~4
+............dddddddddddddddddddddddd
+~2
+.....dddddddddddddddddddddddddddddd
+.....dddddddddddddddddddddddddddddd
+~4
+field 9 13 12 CURSOR MODE_CURSOR 0
+field 12 13 12 CURSOR MODE_CURSOR 1
+field 15 13 12 CURSOR MODE_CURSOR 2
+end
+
+# ---- page NOAI
+page NOAI 2
+~7
+              NO TRAINED AI
+~2
+             TRAIN THE AI FIRST,
+             THEN WATCH IT.
+~2
+               TRAIN AI
+~2
+               MAIN MENU
+~6
+      8/2 SELECT    ENTER CONFIRM
+~5
+attr
+~7
+............eeeeeeeeeeeeeeeee
+~2
+............aaaaaaaaaaaaaaaaaaaaaa
+............aaaaaaaaaaaaaaaaaaaaaa
+~1
+............dddddddddddddddddddddd
+............dddddddddddddddddddddd
+............dddddddddddddddddddddd
+............dddddddddddddddddddddd
+............dddddddddddddddddddddd
+............dddddddddddddddddddddd
+............dddddddddddddddddddddd
+~4
+.....dddddddddddddddddddddddddddddd
+~5
+field 14 13 12 CURSOR NOAI_CURSOR 0
+field 17 13 12 CURSOR NOAI_CURSOR 1
+end
+
+# ---- page WATCH
+page WATCH 2
+~1
+  AI PLAYING  ACTION
+~28
+attr
+~1
+.bbbbbbbbbbbbaaaaaaaaaaaaa
+~28
+field 1 21 4 WORD AI_ACTION ACTION
+end
+
+# ---- page WATCHDBG
+page WATCHDBG 1
+~1
+   AI PLAYING
+   ACTION
+~54
+ F0       F1       F2       F3       H0       Y
+ F0 NEXT GAP  F1 GAP AFTER  F2 REL SPEED  F3 FRAMES TO GO  (VALUE / 64)
+~1
+attr
+~1
+..bbbbbbbbbbbbb
+..aaaaaaaaaaaaa
+~54
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+~1
+field 2 10 4 WORD AI_ACTION ACTION
+field 57 4 4 SDEC AI_F0
+field 57 13 4 SDEC AI_F1
+field 57 22 4 SDEC AI_F2
+field 57 31 4 SDEC AI_F3
+field 57 40 4 SDEC AI_H0
+field 57 48 7 SDEC AI_Y
+end
+
+# ---- page SETUP
+page SETUP 2
+   TRAIN AI SETUP - CHOOSE THE WORLD
+~28
+ 4/6 WORLD SPEED           KEY1 BACK
+attr
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+~28
+dddddddddddddddddddddddddddddddddddddddd
+field 29 17 1 DEC WORLD_SPEED
+end
+
+# ---- page TRAINSTUB
+page TRAINSTUB 2
+~4
+                TRAIN AI
+~2
+             THE TRAINING ENGINE
+             ARRIVES IN M10.
+~2
+             YOUR WORLD:
+~1
+             LEVEL
+~1
+             CORALS
+~1
+             SPEED
+~6
+     PRESS ENTER FOR THE MAIN MENU
+~5
+attr
+~4
+..............bbbbbbbbbbbb
+~2
+............aaaaaaaaaaaaaaaaaaaaaaa
+............aaaaaaaaaaaaaaaaaaaaaaa
+~2
+............ccccccccccccccccccccccc
+............ccccccccccccccccccccccc
+............ccccccccccccccccccccccc
+............ccccccccccccccccccccccc
+............ccccccccccccccccccccccc
+............ccccccccccccccccccccccc
+............ccccccccccccccccccccccc
+~6
+....ddddddddddddddddddddddddddddddd
+~5
+field 13 21 6 WORD TRAIN_DIFF DIFF
+field 15 21 1 DEC TRAIN_CORALS
+field 17 21 1 DEC TRAIN_SPEED
+end
+

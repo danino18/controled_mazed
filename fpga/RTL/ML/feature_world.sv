@@ -32,28 +32,32 @@ module feature_world
     output logic signed [11:0]           birdVyOut
 );
 
-  int   x [NUM_COLUMNS];
+  logic signed [11:0] x [0:NUM_COLUMNS-1];
   logic has1, has2;
+  logic [1:0] i1, i2;
   logic [1:0] n1, n2;
 
   always_comb begin
-    for (int i = 0; i < NUM_COLUMNS; i++) x[i] = int'($signed(colX[i]));
+    for (int i = 0; i < NUM_COLUMNS; i++) x[i] = 12'($signed(colX[i]));
 
     has1 = 1'b0;
-    n1   = 2'd0;
+    i1   = 2'd0;
     for (int i = 0; i < NUM_COLUMNS; i++)
-      if (colActive[i] && x[i] >= NOT_PASSED_X && (!has1 || x[i] < x[n1])) begin
+      if (colActive[i] && x[i] >= NOT_PASSED_X && (!has1 || x[i] < x[i1])) begin
         has1 = 1'b1;
-        n1   = 2'(i);
+        i1   = 2'(i);
       end
 
     has2 = 1'b0;
-    n2   = n1;
+    i2   = i1;
     for (int i = 0; i < NUM_COLUMNS; i++)
-      if (has1 && colActive[i] && x[i] > x[n1] && (!has2 || x[i] < x[n2])) begin
+      if (has1 && colActive[i] && x[i] > x[i1] && (!has2 || x[i] < x[i2])) begin
         has2 = 1'b1;
-        n2   = 2'(i);
+        i2   = 2'(i);
       end
+
+    n1 = i1;
+    n2 = i2;
   end
 
   // ---------------------------------------------------------------- time to arrival
@@ -76,9 +80,9 @@ module feature_world
     endcase
   end
 
-  assign v1     = has1 && x[n1] < SCREEN_W;
-  assign v2     = v1 && has2 && x[n2] < SCREEN_W;
-  assign dx     = x[n1] + CORAL_CORE_INSET - HB_RIGHT;
+  assign v1     = has1 && x[i1] < SCREEN_W;
+  assign v2     = v1 && has2 && x[i2] < SCREEN_W;
+  assign dx     = int'(x[i1]) + CORAL_CORE_INSET - HB_RIGHT;
   assign scaled = 18'(dx) * 18'(recip);          // only used when 0 < dx < SCREEN_W
 
   always_comb begin
