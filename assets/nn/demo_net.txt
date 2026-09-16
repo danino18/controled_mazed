@@ -1,0 +1,45 @@
+# Hand-set demonstration network for WATCH AI (M9), 37 signed 8-bit genes.
+# It is a proportional-derivative controller written as a 4-6-1 network:
+#   h0 = clamp(2.0 * e_next + 0.25 * v_rel)        (weights are value / 32)
+#   y  = 1.0 * h0
+# so the maze moves UP when e_next + 4 frames * v_rel exceeds about 16 px,
+# DOWN below -16 px, and holds in between. All other genes are zero.
+#
+# gene  value   meaning
+  0     0       h0 bias
+  1     64      h0 <- e_next   (2.0)
+  2     0       h0 <- e_after
+  3     8       h0 <- v_rel    (0.25)
+  4     0       h0 <- tau
+  5     0       h1 bias
+  6     0
+  7     0
+  8     0
+  9     0
+ 10     0       h2 bias
+ 11     0
+ 12     0
+ 13     0
+ 14     0
+ 15     0       h3 bias
+ 16     0
+ 17     0
+ 18     0
+ 19     0
+ 20     0       h4 bias
+ 21     0
+ 22     0
+ 23     0
+ 24     0
+ 25     0       h5 bias
+ 26     0
+ 27     0
+ 28     0
+ 29     0
+ 30     0       output bias
+ 31     32      output <- h0   (1.0)
+ 32     0       output <- h1
+ 33     0       output <- h2
+ 34     0       output <- h3
+ 35     0       output <- h4
+ 36     0       output <- h5
