@@ -93,6 +93,16 @@ module game_logic
       .menuStart  (menuStart)
   );
 
+  // The round restarts one clock after the seeds are loaded, so the first coral
+  // openings already come from the new seed. A round is then a pure function of
+  // its seed, which the on-chip trainer relies on to replay identical worlds.
+  logic roundStartD;
+
+  always_ff @(posedge clk or negedge resetN) begin
+    if (!resetN) roundStartD <= 1'b0;
+    else         roundStartD <= roundStart;
+  end
+
   logic inMenu, worldRun, steerRun, birdRun;
 
   assign inMenu   = (screen == ST_MENU_DIFF) || (screen == ST_MENU_OBST);
@@ -139,7 +149,7 @@ module game_logic
       .resetN   (resetN),
       .tick     (tickMove),
       .run      (birdRun),
-      .restart  (roundStart || menuStart),
+      .restart  (roundStartD || menuStart),
       .mode     (inMenu ? DIFF_EASY : difficulty),
       .rnd      (birdRnd),
       .birdY    (birdY),
@@ -167,7 +177,7 @@ module game_logic
       .resetN    (resetN),
       .tick      (tickMove),
       .run       (steerRun),
-      .restart   (roundStart),
+      .restart   (roundStartD),
       .moveUp    (ctrlUp),
       .moveDown  (ctrlDown),
       .mazeOffset(mazeOffset),
@@ -196,7 +206,7 @@ module game_logic
       .tickMove   (tickMove),
       .tickCheck  (tickCheck),
       .run        (worldRun),
-      .restart    (roundStart),
+      .restart    (roundStartD),
       .columnCount(columnCount),
       .worldStep  (worldStep),
       .mazeOffset (mazeOffset),
@@ -224,7 +234,7 @@ module game_logic
   score_bcd scoring (
       .clk       (clk),
       .resetN    (resetN),
-      .clearScore(roundStart),
+      .clearScore(roundStartD),
       .addPoint  (scorePulse),
       .commitBest(roundOver),
       .score     (score),
