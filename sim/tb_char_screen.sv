@@ -14,7 +14,7 @@
 `timescale 1ns / 1ps
 
 module tb_char_screen;
-  import palette_pkg::*, ui_pkg::*;
+  import palette_pkg::*, ui_pkg::*, ml_pkg::*;
 
   logic clk = 1'b0;
   logic resetN = 1'b0;
@@ -29,7 +29,7 @@ module tb_char_screen;
       .RGBIn(8'h00), .PixelX(pixelX), .PixelY(pixelY), .startOfFrame(startOfFrame),
       .oVGA(ovga), .address(), .clk(clk), .resetN(resetN));
 
-  logic [2:0]                   page = PAGE_NONE;
+  logic [3:0]                   page = PAGE_NONE;
   logic [NUM_SOURCES-1:0][31:0] sources = '0;
   logic                         drawingRequest, shown, writerIdle;
 
@@ -128,13 +128,13 @@ module tb_char_screen;
   task automatic build_model(input int p);
     for (int c = 0; c < PAGE_CELLS; c++) model[c] = pageRom[(p - 1) * PAGE_CELLS + c][9:0];
     for (int f = 0; f < MAX_FIELDS; f++) begin
-      logic [38:0] e;
+      logic [42:0] e;
       int fp, row, col, len, fmt, src, arg, attr, base;
       longint unsigned v;
       string text;
-      e    = fieldRom[f][38:0];
-      fp   = e[38:36]; row = e[35:30]; col = e[29:23]; len = e[22:19];
-      fmt  = e[18:16]; src = e[15:10]; arg = e[9:4];   attr = e[3:0];
+      e    = fieldRom[f][42:0];
+      fp   = e[42:39]; row = e[38:33]; col = e[32:26]; len = e[25:22];
+      fmt  = e[21:19]; src = e[18:11]; arg = e[10:4];  attr = e[3:0];
       if (fp != p || len == 0) continue;
       base = row * 80 + col;
       v    = sources[src];
@@ -158,7 +158,7 @@ module tb_char_screen;
         end
         FMT_WORD: begin
           logic [50:0] w;
-          w = wordRom[(arg + (v & 63)) & 63][50:0];
+          w = wordRom[(arg + (v & 127)) & 127][50:0];
           for (int k = 0; k < len; k++)
             model[base + k] = {attr[3], w[50:48], (k < 8) ? w[47 - 6 * k -: 6] : 6'd0};
         end
@@ -171,6 +171,9 @@ module tb_char_screen;
             pc = pageRom[(p - 1) * PAGE_CELLS + base + k][9:0];
             model[base + k] = {pc[9], sel ? 3'd1 : pc[8:6], pc[5:0]};
           end
+        end
+        FMT_BAR: begin
+          for (int k = 0; k < len; k++) model[base + k] = {4'(attr), k < v ? 6'h03 : glyph_of("-")};
         end
         default: fail($sformatf("field %0d has unknown format %0d", f, fmt));
       endcase
@@ -285,13 +288,10 @@ module tb_char_screen;
         default: sources[s] = r[2:0] % 3;
       endcase
     end
-    // word selectors must stay inside their lists (3 words each)
-    sources[SRC_AI_ACTION] = sources[SRC_AI_ACTION] % 3;
-    sources[SRC_TRAIN_DIFF] = sources[SRC_TRAIN_DIFF] % 3;
   endtask
 
   task automatic show_page(input int p, input string what);
-    page = 3'(p);
+    page = 4'(p);
     checkPixels = 0;
     repeat (4) @(posedge clk);          // pixels already in the 3-clock pipeline
     if (shown) fail("still shown after a page change");
@@ -361,6 +361,25 @@ module tb_char_screen;
     if (cells_text(12, 15, 8) != "TRAIN AI") fail("cursor field damaged the item text");
     if (dut.charRam[12 * 80 + 15][8:6] != 3'd1) fail("selected item is not gold");
     if (dut.charRam[9 * 80 + 15][8:6] != 3'd3)  fail("unselected item is not dim");
+
+    // training screen formats
+    sources[SRC_TR_BATCHES] = 3;
+    sources[SRC_TR_RUNID]   = 32'h3F2C;
+    sources[SRC_L5_STATE]   = LANE_DEAD;
+    sources[SRC_TR_WORLD]   = 1;
+    sources[SRC_TR_SIM]     = 6;
+    show_page(PAGE_TRAIN, "training screen");
+    if (cells_text(40, 12, 8) != "###-----") fail($sformatf("BAR 3 shown as '%s'", cells_text(40, 12, 8)));
+    if (cells_text(0, 19, 4) != "3F2C")     fail($sformatf("HEX shown as '%s'", cells_text(0, 19, 4)));
+    if (cells_text(35, 24, 5) != "DEAD ")    fail($sformatf("lane 5 state shown as '%s'", cells_text(35, 24, 5)));
+    if (dut.charRam[35 * 80 + 24][8:6] != 3'd4) fail("DEAD is not red");
+    if (cells_text(1, 39, 2) != "B ")       fail($sformatf("world shown as '%s'", cells_text(1, 39, 2)));
+    if (cells_text(0, 59, 5) != "X1024")    fail($sformatf("SIM shown as '%s'", cells_text(0, 59, 5)));
+    for (int c = 0; c < 80; c++)
+      if (dut.charRam[10 * 80 + c] != 10'd0) begin
+        fail("the lane window area is not empty in the character layer");
+        break;
+      end
 
     sources[SRC_WORLD_SPEED] = 12;       // one digit: saturates at 9
     show_page(PAGE_SETUP, "setup banner");

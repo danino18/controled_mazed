@@ -25,7 +25,7 @@ module char_screen
     input  logic [10:0]                  pixelX,
     input  logic [10:0]                  pixelY,
     input  logic                         startOfFrame,
-    input  logic [2:0]                   page,          // PAGE_NONE hides the layer
+    input  logic [3:0]                   page,          // PAGE_NONE hides the layer
     input  logic [NUM_SOURCES-1:0][31:0] sources,
     output logic                         drawingRequest,
     output color_t                       RGBout,
@@ -33,16 +33,17 @@ module char_screen
     output logic                         writerIdle     // for tests: no load or field pass running
 );
 
-  localparam int CELLS = PAGE_CELLS;
+  localparam int CELLS   = PAGE_CELLS;
+  localparam int PAGE_AW = $clog2(PAGE_WORDS);   // the ROM model wants exactly this width
 
   // ================================================================ memories
   // page ROM: address registered, output not
-  logic [14:0] pRomAddr;
+  logic [15:0] pRomAddr;
   logic [9:0]  pRomQ;
 
   lpm_rom #(
       .lpm_width             (10),
-      .lpm_widthad           (15),
+      .lpm_widthad           (PAGE_AW),
       .lpm_numwords          (PAGE_WORDS),
       .lpm_file              ("RTL/MIF/pages.mif"),
       .lpm_type              ("LPM_ROM"),
@@ -50,17 +51,17 @@ module char_screen
       .lpm_outdata           ("UNREGISTERED"),
       .intended_device_family("Cyclone V")
   ) pageRom (
-      .address(pRomAddr),
+      .address(pRomAddr[PAGE_AW-1:0]),
       .inclock(clk),
       .q      (pRomQ)
   );
 
-  logic [5:0]  fRomAddr;
-  logic [38:0] fRomQ;
+  logic [7:0]  fRomAddr;
+  logic [42:0] fRomQ;
 
   lpm_rom #(
-      .lpm_width             (39),
-      .lpm_widthad           (6),
+      .lpm_width             (43),
+      .lpm_widthad           (8),
       .lpm_numwords          (MAX_FIELDS),
       .lpm_file              ("RTL/MIF/fields.mif"),
       .lpm_type              ("LPM_ROM"),
@@ -73,12 +74,12 @@ module char_screen
       .q      (fRomQ)
   );
 
-  logic [5:0]  wRomAddr;
+  logic [6:0]  wRomAddr;
   logic [50:0] wRomQ;
 
   lpm_rom #(
       .lpm_width             (51),
-      .lpm_widthad           (6),
+      .lpm_widthad           (7),
       .lpm_numwords          (MAX_WORDS),
       .lpm_file              ("RTL/MIF/words.mif"),
       .lpm_type              ("LPM_ROM"),
@@ -110,8 +111,8 @@ module char_screen
   assign ramQ = charRam[ramRaReg];
 
   // ================================================================ loader and field writer
-  function automatic logic [14:0] page_base(input logic [2:0] p);
-    return 15'((int'(p) - 1) * CELLS);
+  function automatic logic [15:0] page_base(input logic [3:0] p);
+    return 16'((int'(p) - 1) * CELLS);
   endfunction
 
   function automatic logic [12:0] row_base(input logic [5:0] r);
@@ -119,6 +120,7 @@ module char_screen
   endfunction
 
   localparam logic [5:0] G_SPACE = 6'h00;
+  localparam logic [5:0] G_BLOCK = 6'h03;   // '#' is drawn as a solid block
   localparam logic [5:0] G_PLUS  = 6'h0B;
   localparam logic [5:0] G_MINUS = 6'h0D;
   localparam logic [5:0] G_ZERO  = 6'h10;
@@ -133,8 +135,8 @@ module char_screen
 
   state_t      state;
   logic        shownReg;       // curPage is visible (changes only at a frame start)
-  logic [2:0]  curPage;        // page held in the character RAM
-  logic [2:0]  loadPage;
+  logic [3:0]  curPage;        // page held in the character RAM
+  logic [3:0]  loadPage;
   logic        ready;          // curPage is complete (loaded and one field pass written)
   logic        frameReq;
   logic [12:0] loadCount;
@@ -142,13 +144,13 @@ module char_screen
   logic [12:0] loadWa1;
 
   // current field
-  logic [5:0]  idx;
-  logic [2:0]  fPage;
+  logic [7:0]  idx;
+  logic [3:0]  fPage;
   logic [5:0]  fRow;
   logic [6:0]  fCol;
   logic [3:0]  fLen;
   logic [2:0]  fFmt;
-  logic [5:0]  fArg;
+  logic [6:0]  fArg;
   logic [3:0]  fAttr;
   logic [31:0] value;
   logic [31:0] mag;
@@ -212,13 +214,14 @@ module char_screen
         cellGlyph = (k < 4'd8) ? word[47 - 6 * k -: 6] : G_SPACE;
         cellAttr  = {fAttr[3], word[50:48]};
       end
+      FMT_BAR:  cellGlyph = (32'(k) < value) ? G_BLOCK : G_MINUS;
       default:  cellGlyph = cursorSel ? G_GT : G_SPACE;   // CURSOR marker cell
     endcase
   end
 
   // value of the field's source, looked up straight from the field ROM output
-  logic [5:0] romSrc;
-  assign romSrc = fRomQ[15:10];
+  logic [7:0] romSrc;
+  assign romSrc = fRomQ[18:11];
 
   always_ff @(posedge clk or negedge resetN) begin
     if (!resetN) begin
@@ -287,8 +290,8 @@ module char_screen
         S_F_ADDR: state <= S_F_READ;
 
         S_F_READ: begin
-          {fPage, fRow, fCol, fLen, fFmt} <= fRomQ[38:16];
-          fArg  <= fRomQ[9:4];
+          {fPage, fRow, fCol, fLen, fFmt} <= fRomQ[42:19];
+          fArg  <= fRomQ[10:4];
           fAttr <= fRomQ[3:0];
           value <= (int'(romSrc) < NUM_SOURCES) ? sources[romSrc] : 32'd0;
           state <= S_F_DISPATCH;
@@ -310,7 +313,7 @@ module char_screen
                 iter <= '0;
                 state <= S_BCD;
               end
-              FMT_HEX: begin
+              FMT_HEX, FMT_BAR: begin
                 sat   <= 1'b0;
                 state <= S_WRITE;
               end
@@ -352,8 +355,8 @@ module char_screen
         end
 
         S_F_NEXT: begin
-          idx <= idx + 6'd1;
-          if (idx == 6'(MAX_FIELDS - 1)) begin
+          idx <= idx + 8'd1;
+          if (idx == 8'(MAX_FIELDS - 1)) begin
             ready <= (curPage == page);
             state <= S_IDLE;
           end else begin
@@ -370,11 +373,11 @@ module char_screen
   always_comb begin
     // only address the page ROM while it is being read (the simulation model
     // of lpm_rom stops on an address past its last word)
-    if (state == S_LOAD)          pRomAddr = page_base(loadPage) + 15'(loadCount);
-    else if (state == S_CUR_ADDR) pRomAddr = page_base(curPage) + 15'(fieldBase) + 15'(k);
-    else                          pRomAddr = 15'd0;
+    if (state == S_LOAD)          pRomAddr = page_base(loadPage) + 16'(loadCount);
+    else if (state == S_CUR_ADDR) pRomAddr = page_base(curPage) + 16'(fieldBase) + 16'(k);
+    else                          pRomAddr = 16'd0;
     fRomAddr = idx;
-    wRomAddr = fArg + value[5:0];
+    wRomAddr = fArg + value[6:0];
   end
 
   // character RAM writes

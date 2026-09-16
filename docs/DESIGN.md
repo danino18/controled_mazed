@@ -221,14 +221,36 @@ Superseded in M9 by section L: `game_logic` exports every signal the AI needs (b
 - Once per frame, during vertical blanking, a writer formats the values into a character RAM, so every visible frame shows one consistent set of values.
 - This replaces growing `text_pkg` (Quartus 17 crashes at 23 lines).
 
-**Training engine (M10–M12, planned).**
-- **Lanes:** 8 real lanes. The lanes share one world; each lane has its own maze, collision, NN datapath (1 DSP), counters and death snapshot.
-- **Population:** 64 candidates, so 8 batches per generation. Each candidate plays world A_g and world B_g.
-- **Fitness:** gates × 65,536 + Σ(survival steps + well-centred steps), a 26-bit value.
-- **Evolution:** tournament selection (K = 4), neuron-block crossover, mutation whose strength adapts to stagnation, and 2 elites.
-- **Validation:** after each generation, the top 8 play the 4 fixed validation worlds; the champion is the best validation score ever seen.
-- **Display:** the VGA shows atomic per-frame snapshots of the eight lanes (window k = lane k). A free-running step divider (SIM ×1 … MAX) sets the simulation speed and never waits for the video.
-- **Estimated size:** ~16% ALM, 11 DSP, 58 M10K for the whole design.
+**Text screens (M10 extension).** Fields are 43-bit words {page 4, row 6, col 7, len 4, fmt 3, source 8, arg 7, attr 4}: up to 15 pages, 256 fields, 256 sources and 128 words. A new BAR format draws a progress bar. `game_system` starts the text writer 64 clocks after the frame starts, after the trainer's snapshot (below).
+
+**Training engine (M10: parallel evaluation).**
+- **`train_lanes`** is the simulator: one `world_engine` shared by 8 `train_lane`s. A `train_lane` is one `lane_engine` (maze, openings, collision), one `feature_lane` and one `nn_datapath` (1 DSP), plus the fitness counters and the lane's picture.
+  - All lanes share one `feature_world`, one `nn_sched` and one 64-bit weight memory word per gene (8 bits per lane).
+  - The world does not depend on the player, so sharing it is exact: every lane of a run plays the same world.
+- **Run:** load the seed, then restart one clock later; 88 frozen GET READY steps; then PLAY steps until no enabled lane is alive and not done. This is the order `game_logic` follows in WATCH AI.
+- **Step:** 48 clocks, ordered like a game frame:
+  - ph 0 move, ph 1 collisions and passes, ph 2 alive/gates/steps and picture;
+  - ph 3–4 features, ph 5 network start and centred-step count, ph 44 new actions.
+- **Fitness counters per lane** (per PLAY step begun alive):
+  - T and accTA + 1; G + 1 on a pass (a pass on the death step counts, as in the game);
+  - a collision kills the lane; T = 4095 marks it DONE (W + 1);
+  - accTA + 1 more if the step ended alive with the next column on screen and |e_next| ≤ 16 px;
+  - fitness = {G[9:0], TA[15:0]}.
+- **Dead lanes** freeze: the maze does not move, the network does not evaluate, and the counters and picture keep the death step's values.
+- **Throttle (`sim_throttle`):** a free-running divider allows one step every 433,993 / 216,997 / 108,498 / 27,125 / 6,781 / 1,695 / 424 clocks (×1, ×2, ×4, ×16, ×64, ×256, ×1024), or back to back (MAX).
+  - During TRAIN AI, Numpad 4/6 drive a second `world_speed_control` (the same stepping rules, reset level 2 = ×4).
+  - `game_logic` does not receive those keys then, so the world speed to train on cannot change.
+- **Scheduler (`train_ctrl`, M10 version):** a generation plays all 64 candidates of a fixed population (`assets/nn/pop_m10.txt` → `pop_init.mif`: 8 hand-set controllers, one per batch, plus 56 random networks) in 8 batches, each on world A_g and world B_g.
+  - A_g and B_g come from `world_seeds`: a 15-bit maximal LFSR seeded from the RUN ID. A draw advances it 15 steps, giving a new seed with bit 15 = 0 every generation.
+  - Results go to the fitness memory and to `top8_list` (a stable insertion sort), plus the generation best and the mean survival.
+  - At SIM ×1–×16 the scheduler pauses 0.5 s after each run and 1 s after each generation.
+- **Snapshot (`train_top`):** `startOfFrame` requests it; the simulator grants it between two steps (at most 48 clocks later) and never while a run is being set up. Every displayed value (lane state, candidate, action, gates, fitness, steps, picture, header, statistics) is copied on that one clock.
+- **Training screen:**
+  - `lane_view_draw` draws window k from lane k's snapshot at 1/4 scale with the game's own `coral.mif`/`bird.mif` and water colours.
+  - Borders: cyan = alive, red = dead (darkened, red cross), green = done, grey = idle.
+  - `char_screen` page TRAIN adds the header, the two label lines under each window, the generation statistics and a legend.
+- **Indicators in TRAIN AI:** LEDR[8:1] = lanes 7..0 alive, LEDR9 toggles once per generation, HEX5–3 = generation, HEX2–0 = best gates of the generation.
+- **M11–M12 (planned):** evolution, validation on 4 fixed worlds, champion, final test on 8 unseen worlds, learning chart, commit to WATCH AI, pause menu, TRAINING COMPLETE page.
 
 ## M. Risks
 

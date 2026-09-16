@@ -18,10 +18,105 @@ source WORLD_SPEED
 source TRAIN_DIFF
 source TRAIN_CORALS
 source TRAIN_SPEED
+source TR_RUNID
+source TR_GEN
+source TR_BATCH
+source TR_SIM
+source TR_STAGE
+source TR_RUNSTATE
+source TR_WORLD
+source TR_SEED
+source TR_STEP
+source TR_READY
+source TR_SPS
+source TR_EVALS
+source L0_CAND
+source L0_STATE
+source L0_ACT
+source L0_GATES
+source L0_FIT
+source L0_STEPS
+source L1_CAND
+source L1_STATE
+source L1_ACT
+source L1_GATES
+source L1_FIT
+source L1_STEPS
+source L2_CAND
+source L2_STATE
+source L2_ACT
+source L2_GATES
+source L2_FIT
+source L2_STEPS
+source L3_CAND
+source L3_STATE
+source L3_ACT
+source L3_GATES
+source L3_FIT
+source L3_STEPS
+source L4_CAND
+source L4_STATE
+source L4_ACT
+source L4_GATES
+source L4_FIT
+source L4_STEPS
+source L5_CAND
+source L5_STATE
+source L5_ACT
+source L5_GATES
+source L5_FIT
+source L5_STEPS
+source L6_CAND
+source L6_STATE
+source L6_ACT
+source L6_GATES
+source L6_FIT
+source L6_STEPS
+source L7_CAND
+source L7_STATE
+source L7_ACT
+source L7_GATES
+source L7_FIT
+source L7_STEPS
+source TR_BEST
+source TR_BEST_GATES
+source TR_BEST_CAND
+source TR_BATCHES
+source TR_DONE_CANDS
+source TR_LAST_MEAN
+source TOP0_ID
+source TOP0_GATES
+source TOP0_FIT
+source TOP1_ID
+source TOP1_GATES
+source TOP1_FIT
+source TOP2_ID
+source TOP2_GATES
+source TOP2_FIT
+source TOP3_ID
+source TOP3_GATES
+source TOP3_FIT
+source TOP4_ID
+source TOP4_GATES
+source TOP4_FIT
+source TOP5_ID
+source TOP5_GATES
+source TOP5_FIT
+source TOP6_ID
+source TOP6_GATES
+source TOP6_FIT
+source TOP7_ID
+source TOP7_GATES
+source TOP7_FIT
 
 # ---- word lists (value 0, 1, 2 ...)
 words ACTION HOLD=3 DOWN=7 UP__=5
 words DIFF EASY__=5 MEDIUM=7 HARD__=4
+words LSTATE IDLE_=6 ALIVE=2 DEAD_=4 DONE_=5
+words SIM X1___=2 X2___=2 X4___=2 X16__=2 X64__=2 X256_=2 X1024=2 MAX__=1
+words STAGE ________=3 TRAINING=2 VALIDATE=1 TESTING_=7 EVOLVING=5 COMPLETE=5
+words RUNSTATE LOADING_=3 READY___=0 PLAYING_=5 FINISHED=7 SCORING_=2 NEXT_GEN=1 PAUSED__=4 ________=3
+words WORLD A_=0 B_=0 V1=1 V2=1 V3=1 V4=1 T1=7 T2=7 T3=7 T4=7 T5=7 T6=7 T7=7 T8=7
 
 # ---- page MODE
 page MODE 2
@@ -152,43 +247,221 @@ dddddddddddddddddddddddddddddddddddddddd
 field 29 17 1 DEC WORLD_SPEED
 end
 
-# ---- page TRAINSTUB
-page TRAINSTUB 2
-~4
-                TRAIN AI
-~2
-             THE TRAINING ENGINE
-             ARRIVES IN M10.
-~2
-             YOUR WORLD:
-~1
-             LEVEL
-~1
-             CORALS
-~1
-             SPEED
-~6
-     PRESS ENTER FOR THE MAIN MENU
-~5
+# ---- page TRAIN (the training screen; laid out with 8 lane windows at rows 5-18 and 21-34)
+page TRAIN 1
+ TRAIN AI   RUN ID        GENERATION       BATCH  /8   SIM        4/6 SIM SPEED
+ STAGE            RUN            WORLD     SEED        KEY1 BACK TO MENU
+ CONFIG          CORALS  SPEED     PLAY STEP        READY   /88
+ STEPS/S          EVALUATIONS             WINDOW K = LANE K, ONE SHARED WORLD
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+C              G    C              G    C              G    C              G
+F         T         F         T         F         T         F         T
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+C              G    C              G    C              G    C              G
+F         T         F         T         F         T         F         T
+
+ THIS GENERATION (ITS OWN WORLDS A+B)     HOW TO READ THE LANES
+  BEST               GATES      C
+  BATCHES  [        ]    /64 PLAYED       EACH WINDOW IS ONE REAL LANE OF
+  LAST GENERATION MEAN SURVIVAL    %      THE SIMULATOR - ALL PLAY ONE WORLD
+
+ TOP 8 OF THIS GENERATION                 BORDER  CYAN ALIVE   RED DEAD
+     CAND GATES  FITNESS                          GREEN DONE   GREY IDLE
+  1  C
+  2  C                                    C  CANDIDATE NUMBER 0-63
+  3  C                                    G  GATES PASSED (RUNS A+B)
+  4  C                                    F  FITNESS = GATES X 65536
+  5  C                                       + STEPS + WELL CENTRED STEPS
+  6  C                                    T  STEPS OF THIS RUN (UP TO 4095)
+  7  C
+  8  C
+                                          SIM X1 = ONE STEP PER GAME FRAME
+ POPULATION FIXED (M10): 8 HAND-SET       FASTER SPEEDS SHOW EVERY N-TH STEP
+ CONTROLLERS + 56 RANDOM NETWORKS
+
+
+ 4/6 CHANGE ONLY THE SIMULATION SPEED - THE TRAINED WORLD SPEED STAYS
+
 attr
-~4
-..............bbbbbbbbbbbb
-~2
-............aaaaaaaaaaaaaaaaaaaaaaa
-............aaaaaaaaaaaaaaaaaaaaaaa
-~2
-............ccccccccccccccccccccccc
-............ccccccccccccccccccccccc
-............ccccccccccccccccccccccc
-............ccccccccccccccccccccccc
-............ccccccccccccccccccccccc
-............ccccccccccccccccccccccc
-............ccccccccccccccccccccccc
-~6
-....ddddddddddddddddddddddddddddddd
-~5
-field 13 21 6 WORD TRAIN_DIFF DIFF
-field 15 21 1 DEC TRAIN_CORALS
-field 17 21 1 DEC TRAIN_SPEED
+abbbbbbbbaaaddddddaaaaaaaaddddddddddabbbaaadddddaaddaaadddacccccaaddddddddddddda
+adddddaaaaaaaaaaaadddaaaaaaaaaaaadddddaaaaaddddaaaaaaaadddddddddddddddddaaaaaaaa
+addddddaaaaaaaaaaddddddaadddddaaaaadddddddddaaaaaaaadddddaaadddaaaaaaaaaaaaaaaaa
+adddddddaccccccaaadddddddddddaaaaaaaaaaaaadddddddddddddddddddddddddddddddddddaaa
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+daaaaaaaaaaaaaadbbbadaaaaaaaaaaaaaadbbbadaaaaaaaaaaaaaadbbbadaaaaaaaaaaaaaadbbba
+daaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaa
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+daaaaaaaaaaaaaadbbbadaaaaaaaaaaaaaadbbbadaaaaaaaaaaaaaadbbbadaaaaaaaaaaaaaadbbba
+daaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaa
+
+abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaabbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaa
+aaddddaaaaaaaaaaaaaaadddddabbbaadaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+aadddddddaadccccccccdaaaaddddddddddaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+aadddddddddddddddddddddddddddddacccdaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+abbbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaddddddaaccccccccccaaaeeeeeeeeaaaaaaaaa
+aaaaadddddddddddddddddddaaaaaaaaaaaaaaaaaaaaaaaaaaffffffffffaaagggggggggaaaaaaaa
+aadaadaaaaabbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+aadaadaaaaabbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaddddddddddddddddddddddddaaaaaaaaaaaaaa
+aadaadaaaaabbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaddddddddddddddddddddddddddaaaaaaaaaaaa
+aadaadaaaaabbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaddddddddddddddddddddddddddaaaaaaaaaaaa
+aadaadaaaaabbbaaaaaaaaaaaaaaaaaaaaaaaaaaaadddddddddddddddddddddddddddddddaaaaaaa
+aadaadaaaaabbbaaaaaaaaaaaaaaaaaaaaaaaaaaaadddddddddddddddddddddddddddddddddaaaaa
+aadaadaaaaabbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+aadaadaaaaabbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddddddddddddddddddddddddddddddddaaaaaa
+addddddddddddddddddddddddddddddddddaaaaaaaddddddddddddddddddddddddddddddddddaaaa
+addddddddddddddddddddddddddddddddaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+addddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+field 0 19 4 HEX TR_RUNID
+field 0 37 3 DEC TR_GEN
+field 0 49 1 DEC TR_BATCH
+field 0 59 5 WORD TR_SIM SIM
+field 1 7 8 WORD TR_STAGE STAGE
+field 1 22 8 WORD TR_RUNSTATE RUNSTATE
+field 1 39 2 WORD TR_WORLD WORLD
+field 1 48 4 HEX TR_SEED
+field 2 8 6 WORD TRAIN_DIFF DIFF
+field 2 15 1 DEC TRAIN_CORALS
+field 2 31 1 DEC TRAIN_SPEED
+field 2 45 4 DEC TR_STEP
+field 2 58 2 DEC TR_READY
+field 3 9 6 DECB TR_SPS
+field 3 30 7 DECB TR_EVALS
+field 19 1 2 DEC L0_CAND
+field 19 4 5 WORD L0_STATE LSTATE
+field 19 10 4 WORD L0_ACT ACTION
+field 19 16 3 DEC L0_GATES
+field 20 1 8 DEC L0_FIT
+field 20 11 4 DEC L0_STEPS
+field 19 21 2 DEC L1_CAND
+field 19 24 5 WORD L1_STATE LSTATE
+field 19 30 4 WORD L1_ACT ACTION
+field 19 36 3 DEC L1_GATES
+field 20 21 8 DEC L1_FIT
+field 20 31 4 DEC L1_STEPS
+field 19 41 2 DEC L2_CAND
+field 19 44 5 WORD L2_STATE LSTATE
+field 19 50 4 WORD L2_ACT ACTION
+field 19 56 3 DEC L2_GATES
+field 20 41 8 DEC L2_FIT
+field 20 51 4 DEC L2_STEPS
+field 19 61 2 DEC L3_CAND
+field 19 64 5 WORD L3_STATE LSTATE
+field 19 70 4 WORD L3_ACT ACTION
+field 19 76 3 DEC L3_GATES
+field 20 61 8 DEC L3_FIT
+field 20 71 4 DEC L3_STEPS
+field 35 1 2 DEC L4_CAND
+field 35 4 5 WORD L4_STATE LSTATE
+field 35 10 4 WORD L4_ACT ACTION
+field 35 16 3 DEC L4_GATES
+field 36 1 8 DEC L4_FIT
+field 36 11 4 DEC L4_STEPS
+field 35 21 2 DEC L5_CAND
+field 35 24 5 WORD L5_STATE LSTATE
+field 35 30 4 WORD L5_ACT ACTION
+field 35 36 3 DEC L5_GATES
+field 36 21 8 DEC L5_FIT
+field 36 31 4 DEC L5_STEPS
+field 35 41 2 DEC L6_CAND
+field 35 44 5 WORD L6_STATE LSTATE
+field 35 50 4 WORD L6_ACT ACTION
+field 35 56 3 DEC L6_GATES
+field 36 41 8 DEC L6_FIT
+field 36 51 4 DEC L6_STEPS
+field 35 61 2 DEC L7_CAND
+field 35 64 5 WORD L7_STATE LSTATE
+field 35 70 4 WORD L7_ACT ACTION
+field 35 76 3 DEC L7_GATES
+field 36 61 8 DEC L7_FIT
+field 36 71 4 DEC L7_STEPS
+field 39 11 8 DEC TR_BEST
+field 39 27 3 DEC TR_BEST_GATES
+field 39 33 2 DEC TR_BEST_CAND
+field 40 12 8 BAR TR_BATCHES
+field 40 23 2 DEC TR_DONE_CANDS
+field 41 32 3 DECB TR_LAST_MEAN
+field 45 6 2 DEC TOP0_ID
+field 45 11 3 DEC TOP0_GATES
+field 45 16 8 DEC TOP0_FIT
+field 46 6 2 DEC TOP1_ID
+field 46 11 3 DEC TOP1_GATES
+field 46 16 8 DEC TOP1_FIT
+field 47 6 2 DEC TOP2_ID
+field 47 11 3 DEC TOP2_GATES
+field 47 16 8 DEC TOP2_FIT
+field 48 6 2 DEC TOP3_ID
+field 48 11 3 DEC TOP3_GATES
+field 48 16 8 DEC TOP3_FIT
+field 49 6 2 DEC TOP4_ID
+field 49 11 3 DEC TOP4_GATES
+field 49 16 8 DEC TOP4_FIT
+field 50 6 2 DEC TOP5_ID
+field 50 11 3 DEC TOP5_GATES
+field 50 16 8 DEC TOP5_FIT
+field 51 6 2 DEC TOP6_ID
+field 51 11 3 DEC TOP6_GATES
+field 51 16 8 DEC TOP6_FIT
+field 52 6 2 DEC TOP7_ID
+field 52 11 3 DEC TOP7_GATES
+field 52 16 8 DEC TOP7_FIT
 end
 

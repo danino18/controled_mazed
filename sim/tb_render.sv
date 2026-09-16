@@ -6,6 +6,7 @@
 //   +shots=<frame>,<frame>,...   save the listed frames (no key presses)
 //   +scenario=tour               play through every screen with scripted keys
 //   +scenario=watch              WATCH AI with the demo network (SW1 debug overlay on)
+//   +scenario=train              TRAIN AI (MEDIUM, 2 corals): +sim=<level 0..7> +count=<frames> +gap=<frames>
 //   +difficulty=<0..2>           difficulty chosen in the tour (default 1)
 //   +columns=<1..3>              coral columns chosen in the tour (default 3)
 // Timers and the first coral position are shortened so a tour takes ~100 frames.
@@ -130,7 +131,7 @@ module tb_render;
     press(KEY_ENTER);
     wait_frames(3);
     capture("tour_8_back_to_mode_menu.ppm");
-    // TRAIN AI setup and the placeholder page, NO TRAINED AI is covered by tb_mode
+    // TRAIN AI setup and the training screen; NO TRAINED AI is covered by tb_mode_fsm
     press(KEY_DOWN);
     press(KEY_ENTER);
     wait_frames(3);
@@ -139,8 +140,36 @@ module tb_render;
     press(KEY_DOWN);
     press(KEY_ENTER);
     wait_frames(3);
-    capture("tour_10_train_placeholder.ppm");
+    capture("tour_10_training.ppm");
+    backN = 1'b0;
+    repeat (100) @(negedge clk);
+    backN = 1'b1;
+    wait_frames(3);
+    capture("tour_11_back_from_training.ppm");
+    if (dut.mode != 0) $display("FAIL: KEY1 did not leave the training screen");
+  endtask
+
+  // TRAIN AI at a given simulation speed: frames of the real lanes
+  logic [2:0] forcedSim = 3'd7;
+
+  task automatic train();
+    int level, shots, gap;
+    if (!$value$plusargs("sim=%d", level)) level = 7;
+    forcedSim = 3'(level);
+    if (!$value$plusargs("count=%d", shots)) shots = 4;
+    if (!$value$plusargs("gap=%d", gap)) gap = 3;
+    wait_frames(3);
+    press(KEY_DOWN);                         // TRAIN AI
     press(KEY_ENTER);
+    press(KEY_DOWN);                         // MEDIUM
+    press(KEY_ENTER);
+    press(KEY_DOWN);                         // 2 corals
+    press(KEY_ENTER);
+    force dut.simLevel = forcedSim;         // holding Numpad 4 would take 12 frames per level
+    for (int i = 0; i < shots; i++) begin
+      wait_frames(gap);
+      capture($sformatf("train_%0d.ppm", i + 1));
+    end
   endtask
 
   task automatic watch();
@@ -182,6 +211,8 @@ module tb_render;
       tour();
     end else if (scenario == "watch") begin
       watch();
+    end else if (scenario == "train") begin
+      train();
     end else begin
       if (!$value$plusargs("shots=%s", shots)) shots = "2";
       pos = 0;

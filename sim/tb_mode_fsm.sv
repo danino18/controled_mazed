@@ -19,20 +19,23 @@ module tb_mode_fsm;
   logic       up = 0, down = 0, enter = 0, back = 0, debugSw = 0, watchValid = 0;
   logic       menuStart = 0, trainStart = 0;
   logic [2:0] screen = ST_MENU_DIFF;
-  logic [2:0] mode, page;
+  logic [2:0] mode;
+  logic [3:0] page;
   logic [1:0] cursor;
-  logic       aiMode, trainMode, gameKeys, gameVisible, abortGame;
+  logic       aiMode, trainMode, gameKeys, gameVisible, abortGame, trainAbort, trainScreen;
 
   mode_fsm dut (
       .clk(clk), .resetN(resetN), .upPulse(up), .downPulse(down), .enterPulse(enter),
       .backPulse(back), .debugSw(debugSw), .watchValid(watchValid), .screen(screen),
       .menuStart(menuStart), .trainStart(trainStart), .mode(mode), .cursor(cursor),
       .aiMode(aiMode), .trainMode(trainMode), .gameKeys(gameKeys), .gameVisible(gameVisible),
-      .abortGame(abortGame), .page(page));
+      .abortGame(abortGame), .trainAbort(trainAbort), .trainScreen(trainScreen), .page(page));
 
   int errors = 0;
   int aborts = 0;
+  int trainAborts = 0;
   always @(posedge clk) if (abortGame) aborts++;
+  always @(posedge clk) if (trainAbort) trainAborts++;
 
   task automatic fail(input string msg);
     errors++;
@@ -103,14 +106,19 @@ module tb_mode_fsm;
     pulse(enter);                                    // Enter goes to the game menus, not here
     expect_mode(MD_SETUP, PAGE_SETUP, "Enter in the setup");
     pulse(trainStart);
-    expect_mode(MD_TRAIN, PAGE_TRAINSTUB, "world chosen");
+    expect_mode(MD_TRAIN, PAGE_TRAIN, "world chosen");
     expect_routing(0, 0, 0, 0, "training");
+    if (!trainScreen) fail("training screen flag not set");
     pulse(enter);
-    expect_mode(MD_MODE_MENU, PAGE_MODE, "Enter on the training placeholder");
-    pulse(enter);
-    pulse(trainStart);
+    pulse(up);
+    pulse(down);
+    expect_mode(MD_TRAIN, PAGE_TRAIN, "Enter and 8/2 during training");
+    if (trainAborts != 0) fail("training stopped without KEY1");
     pulse(back);
-    expect_mode(MD_MODE_MENU, PAGE_MODE, "KEY1 on the training placeholder");
+    expect_mode(MD_MODE_MENU, PAGE_MODE, "KEY1 on the training screen");
+    if (trainAborts != 1) fail("KEY1 did not stop the training run");
+    if (trainScreen) fail("training screen flag still set");
+    if (cursor != 1) fail("mode cursor not on TRAIN AI after training");
 
     // ---- HUMAN PLAY
     pulse(up);

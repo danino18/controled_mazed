@@ -1,8 +1,8 @@
 // Priority multiplexer choosing the colour of the current pixel.
 // Based on the supplied objects_mux.sv: the first layer with an active drawing
 // request wins; the background has no request and is always last.
-// Order (front to back): text screens (char_screen), speed readout, text,
-// panels, bird, coral, background.
+// Order (front to back): text screens (char_screen), training screen graphics
+// (lane_view_draw), speed readout, text, panels, bird, coral, background.
 
 module objects_mux_top
   import palette_pkg::*;
@@ -12,6 +12,9 @@ module objects_mux_top
 
     input  logic   charDrawingRequest,
     input  color_t charRGB,
+
+    input  logic   trainDrawingRequest,
+    input  color_t trainRGB,
 
     input  logic   speedDrawingRequest,
     input  color_t speedRGB,
@@ -38,6 +41,8 @@ module objects_mux_top
       RGBOut <= C_BLACK;
     end else if (charDrawingRequest) begin
       RGBOut <= charRGB;
+    end else if (trainDrawingRequest) begin
+      RGBOut <= trainRGB;
     end else if (speedDrawingRequest) begin
       RGBOut <= speedRGB;
     end else if (textDrawingRequest) begin

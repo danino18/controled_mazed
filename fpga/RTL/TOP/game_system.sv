@@ -112,7 +112,8 @@ module game_system
   logic [2:0] mode;
   logic [1:0] modeCursor;
   logic       aiMode, trainMode, gameKeys, gameVisible, abortGame;
-  logic [2:0] page;
+  logic       trainAbort, trainScreen;
+  logic [3:0] page;
   logic [2:0] screen;
   logic       menuStartGame;   // not exported by game_logic; see below
   logic       trainStart;
@@ -147,6 +148,8 @@ module game_system
       .gameKeys   (gameKeys),
       .gameVisible(gameVisible),
       .abortGame  (abortGame),
+      .trainAbort (trainAbort),
+      .trainScreen(trainScreen),
       .page       (page)
   );
 
@@ -264,20 +267,120 @@ module game_system
       appliedAction <= (aiValid && screen == ST_PLAY) ? {aiUp, aiDown} : ACT_HOLD;
   end
 
-  // ---------------------------------------------------------------- training setup (engine: M10)
-  logic [1:0] trainDifficulty, trainColumns;
-  logic [2:0] trainSpeed;
+  // ---------------------------------------------------------------- on-chip training (TRAIN AI)
+  // Numpad 4/6 set the simulation speed while the training screen is shown
+  // (the same stepping rules as the world speed, level 2 = x4 after reset);
+  // game_logic does not see those keys then, so the world speed to train on
+  // cannot change.
+  logic [2:0] simLevel;
+
+  world_speed_control simSpeed (
+      .clk          (clk),
+      .resetN       (resetN),
+      .tick         (startOfFrame),
+      .speedUpHeld  (trainScreen && speedUpHeld),
+      .speedDownHeld(trainScreen && speedDownHeld),
+      .load         (1'b0),
+      .loadLevel    (3'd0),
+      .speedLevel   (simLevel),
+      .worldStep    ()
+  );
+
+  // RUN ID: the supplied random.sv latched by the Enter press that starts training
+  logic [15:0] runEntropy;
+
+  random #(.SIZE_BITS(16), .MIN_VAL(16'h0000), .MAX_VAL(16'hFFFF)) runIdSource (
+      .clk   (clk),
+      .resetN(resetN),
+      .rise  (enterPulse),
+      .dout  (runEntropy)
+  );
+
+  logic                                 trainActive, trainGenPulse;
+  logic [LANES-1:0]                     trainAlive;
+  logic [1:0]                           trainDifficulty, trainColumns;
+  logic [2:0]                           trainSpeed;
+  logic [LANES-1:0][1:0]                sLaneState, sLaneAct;
+  logic [LANES-1:0][CAND_W-1:0]         sLaneCand;
+  logic [LANES-1:0][9:0]                sLaneGates;
+  logic [LANES-1:0][FIT_W-1:0]          sLaneFit;
+  logic [LANES-1:0][11:0]               sLaneSteps;
+  logic [LANES-1:0][10:0]               sViewBirdY;
+  logic [LANES-1:0][NUM_COLUMNS-1:0]    sViewActive;
+  logic [LANES-1:0][NUM_COLUMNS*11-1:0] sViewColX;
+  logic [LANES-1:0][NUM_COLUMNS*10-1:0] sViewGapTop;
+  logic [2:0]                           sStage, sRunState;
+  logic [15:0]                          sRunId, sSeed;
+  logic [7:0]                           sGen;
+  logic [3:0]                           sBatch, sRunIdx;
+  logic [11:0]                          sPlaySteps;
+  logic [6:0]                           sReadySteps;
+  logic [FIT_W-1:0]                     sGenBest;
+  logic [CAND_W-1:0]                    sGenBestCand;
+  logic                                 sGenBestValid;
+  logic [6:0]                           sGenDone, sLastMean;
+  logic                                 sLastMeanValid;
+  logic [7:0][FIT_W-1:0]                sTopScores;
+  logic [7:0][CAND_W-1:0]               sTopIds;
+  logic [7:0]                           sTopValid;
+  logic [31:0]                          sEvaluated;
+  logic [19:0]                          sStepsPerSec;
+
+  train_top trainer (
+      .clk           (clk),
+      .resetN        (resetN),
+      .start         (trainStart),
+      .abort         (trainAbort),
+      .runIdIn       (runEntropy),
+      .difficultyIn  (difficulty),
+      .columnsIn     (columnCount),
+      .speedIn       (speedLevel),
+      .simLevel      (simLevel),
+      .frameTick     (startOfFrame),
+      .active        (trainActive),
+      .liveAlive     (trainAlive),
+      .genPulse      (trainGenPulse),
+      .snapTaken     (),
+      .cfgDifficulty (trainDifficulty),
+      .cfgColumns    (trainColumns),
+      .cfgSpeed      (trainSpeed),
+      .sLaneState    (sLaneState),
+      .sLaneCand     (sLaneCand),
+      .sLaneAct      (sLaneAct),
+      .sLaneGates    (sLaneGates),
+      .sLaneFit      (sLaneFit),
+      .sLaneSteps    (sLaneSteps),
+      .sViewBirdY    (sViewBirdY),
+      .sViewActive   (sViewActive),
+      .sViewColX     (sViewColX),
+      .sViewGapTop   (sViewGapTop),
+      .sStage        (sStage),
+      .sRunState     (sRunState),
+      .sRunId        (sRunId),
+      .sGen          (sGen),
+      .sBatch        (sBatch),
+      .sRunIdx       (sRunIdx),
+      .sSeed         (sSeed),
+      .sPlaySteps    (sPlaySteps),
+      .sReadySteps   (sReadySteps),
+      .sGenBest      (sGenBest),
+      .sGenBestCand  (sGenBestCand),
+      .sGenBestValid (sGenBestValid),
+      .sGenDone      (sGenDone),
+      .sLastMean     (sLastMean),
+      .sLastMeanValid(sLastMeanValid),
+      .sTopScores    (sTopScores),
+      .sTopIds       (sTopIds),
+      .sTopValid     (sTopValid),
+      .sEvaluated    (sEvaluated),
+      .sStepsPerSec  (sStepsPerSec)
+  );
+
+  logic trainBeat;     // LEDR9 in TRAIN AI: toggles once per generation
 
   always_ff @(posedge clk or negedge resetN) begin
-    if (!resetN) begin
-      trainDifficulty <= DIFF_EASY;
-      trainColumns    <= 2'd1;
-      trainSpeed      <= '0;
-    end else if (trainStart) begin
-      trainDifficulty <= difficulty;
-      trainColumns    <= columnCount;
-      trainSpeed      <= speedLevel;
-    end
+    if (!resetN)            trainBeat <= 1'b0;
+    else if (trainGenPulse) trainBeat <= !trainBeat;
   end
 
   // ---------------------------------------------------------------- sound
@@ -409,7 +512,77 @@ module game_system
     uiSources[SRC_TRAIN_DIFF]   = 32'(trainDifficulty);
     uiSources[SRC_TRAIN_CORALS] = 32'(trainColumns);
     uiSources[SRC_TRAIN_SPEED]  = 32'(trainSpeed);
+
+    // training screen: everything below comes from the trainer's per-frame snapshot
+    uiSources[SRC_TR_RUNID]      = 32'(sRunId);
+    uiSources[SRC_TR_GEN]        = 32'(sGen);
+    uiSources[SRC_TR_BATCH]      = 32'(sBatch) + 32'd1;
+    uiSources[SRC_TR_SIM]        = 32'(simLevel);
+    uiSources[SRC_TR_STAGE]      = 32'(sStage);
+    uiSources[SRC_TR_RUNSTATE]   = 32'(sRunState);
+    uiSources[SRC_TR_WORLD]      = 32'(sRunIdx);
+    uiSources[SRC_TR_SEED]       = 32'(sSeed);
+    uiSources[SRC_TR_STEP]       = 32'(sPlaySteps);
+    uiSources[SRC_TR_READY]      = 32'(sReadySteps);
+    uiSources[SRC_TR_SPS]        = 32'(sStepsPerSec);
+    uiSources[SRC_TR_EVALS]      = sEvaluated;
+    uiSources[SRC_TR_BEST]       = sGenBestValid ? 32'(sGenBest) : 32'd0;
+    uiSources[SRC_TR_BEST_GATES] = sGenBestValid ? 32'(sGenBest[FIT_W-1:16]) : 32'd0;
+    uiSources[SRC_TR_BEST_CAND]  = sGenBestValid ? 32'(sGenBestCand) : 32'd0;
+    uiSources[SRC_TR_BATCHES]    = 32'(sGenDone) >> 3;
+    uiSources[SRC_TR_DONE_CANDS] = 32'(sGenDone);
+    uiSources[SRC_TR_LAST_MEAN]  = 32'(sLastMean);
+    for (int k = 0; k < LANES; k++) begin
+      uiSources[SRC_L0_CAND  + 6 * k] = 32'(sLaneCand[k]);
+      uiSources[SRC_L0_STATE + 6 * k] = 32'(sLaneState[k]);
+      uiSources[SRC_L0_ACT   + 6 * k] = (sLaneAct[k] == ACT_UP) ? 32'd2 : (sLaneAct[k] == ACT_DOWN) ? 32'd1 : 32'd0;
+      uiSources[SRC_L0_GATES + 6 * k] = 32'(sLaneGates[k]);
+      uiSources[SRC_L0_FIT   + 6 * k] = 32'(sLaneFit[k]);
+      uiSources[SRC_L0_STEPS + 6 * k] = 32'(sLaneSteps[k]);
+    end
+    for (int i = 0; i < 8; i++) begin
+      uiSources[SRC_TOP0_ID    + 3 * i] = sTopValid[i] ? 32'(sTopIds[i]) : 32'd0;
+      uiSources[SRC_TOP0_GATES + 3 * i] = sTopValid[i] ? 32'(sTopScores[i][FIT_W-1:16]) : 32'd0;
+      uiSources[SRC_TOP0_FIT   + 3 * i] = sTopValid[i] ? 32'(sTopScores[i]) : 32'd0;
+    end
   end
+
+  // The text writer starts SNAP_DELAY clocks after the frame starts, after the
+  // trainer has granted its snapshot (at most STEP_CLOCKS clocks), so every
+  // value of a frame comes from the same simulated step.
+  localparam int SNAP_DELAY = 64;
+  logic [6:0] snapDelay;
+  logic       textFrame;
+
+  always_ff @(posedge clk or negedge resetN) begin
+    if (!resetN) begin
+      snapDelay <= '0;
+      textFrame <= 1'b0;
+    end else begin
+      textFrame <= (snapDelay == 7'(SNAP_DELAY));
+      if (startOfFrame)          snapDelay <= 7'd1;
+      else if (snapDelay != 7'd0) snapDelay <= (snapDelay == 7'(SNAP_DELAY)) ? 7'd0 : snapDelay + 7'd1;
+    end
+  end
+
+  // training screen graphics (lane windows, backdrop)
+  logic   trainDR;
+  color_t trainRGB;
+
+  lane_view_draw laneViews (
+      .clk           (clk),
+      .resetN        (resetN),
+      .pixelX        (pixelX),
+      .pixelY        (pixelY),
+      .enable        (trainScreen),
+      .laneState     (sLaneState),
+      .viewBirdY     (sViewBirdY),
+      .viewActive    (sViewActive),
+      .viewColX      (sViewColX),
+      .viewGapTop    (sViewGapTop),
+      .drawingRequest(trainDR),
+      .RGBout        (trainRGB)
+  );
 
   logic   charDR;
   color_t charRGB;
@@ -419,7 +592,7 @@ module game_system
       .resetN        (resetN),
       .pixelX        (pixelX),
       .pixelY        (pixelY),
-      .startOfFrame  (startOfFrame),
+      .startOfFrame  (textFrame),
       .page          (page),
       .sources       (uiSources),
       .drawingRequest(charDR),
@@ -433,6 +606,8 @@ module game_system
       .resetN             (resetN),
       .charDrawingRequest (charDR),
       .charRGB            (charRGB),
+      .trainDrawingRequest(trainDR),
+      .trainRGB           (trainRGB),
       .speedDrawingRequest(speedDR && gameVisible),
       .speedRGB           (speedRGB),
       .textDrawingRequest (textDR && gameVisible),
@@ -448,17 +623,36 @@ module game_system
   );
 
   // ---------------------------------------------------------------- indicators
-  // HEX2..HEX0 = current score, HEX5..HEX3 = best score, leading zeros blanked.
-  logic [2:0] scoreOn, bestOn;
+  // Game modes: HEX2..HEX0 = current score, HEX5..HEX3 = best score.
+  // TRAIN AI:   HEX5..HEX3 = generation, HEX2..HEX0 = best gates of the generation.
+  // Leading zeros are blanked.
+  function automatic logic [2:0][3:0] bcd3(input logic [9:0] v);
+    int n;
+    n = (int'(v) > 999) ? 999 : int'(v);
+    return {4'(n / 100), 4'((n / 10) % 10), 4'(n % 10)};
+  endfunction
 
-  leading_zero_blank #(.DIGITS(3)) scoreBlank (.digits(score), .digitOn(scoreOn));
-  leading_zero_blank #(.DIGITS(3)) bestBlank  (.digits(best),  .digitOn(bestOn));
+  logic [2:0][3:0] hexLow, hexHigh;
+  logic [2:0]      lowOn, highOn;
+
+  always_comb begin
+    if (trainScreen) begin
+      hexHigh = bcd3(10'(sGen));
+      hexLow  = bcd3(sGenBestValid ? sGenBest[FIT_W-1:16] : 10'd0);
+    end else begin
+      hexHigh = best;
+      hexLow  = score;
+    end
+  end
+
+  leading_zero_blank #(.DIGITS(3)) lowBlank  (.digits(hexLow),  .digitOn(lowOn));
+  leading_zero_blank #(.DIGITS(3)) highBlank (.digits(hexHigh), .digitOn(highOn));
 
   hex_display_top hex (
       .clk    (clk),
       .resetN (resetN),
-      .digits ({best, score}),
-      .digitOn({bestOn, scoreOn}),
+      .digits ({hexHigh, hexLow}),
+      .digitOn({highOn, lowOn}),
       .HEX0   (HEX0),
       .HEX1   (HEX1),
       .HEX2   (HEX2),
@@ -470,9 +664,11 @@ module game_system
   // LEDR[0] is driven by the board top level (PLL locked).
   // LEDR[4:2] = game screen, LEDR[6:5] = difficulty, LEDR[8:7] = coral columns,
   // LEDR[9] = heartbeat. In WATCH AI: LEDR[9] = maze up, LEDR[8] = maze down.
+  // In TRAIN AI: LEDR[8:1] = lanes 7..0 alive, LEDR[9] toggles once per generation.
   always_comb begin
     LEDR = {blink, columnCount, difficulty, screen, resetN, 1'b0};
     if (aiMode) LEDR[9:8] = {appliedAction == ACT_UP, appliedAction == ACT_DOWN};
+    if (trainScreen) LEDR = {trainBeat, trainAlive, 1'b0};
   end
 
 endmodule

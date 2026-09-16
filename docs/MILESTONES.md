@@ -14,7 +14,8 @@ Measurements are from Quartus Prime Lite 17.0.0 Build 595, full compile (`quartu
 | M7 1/2/3 columns verified; game logic separated into game_logic | 84 s | 931 (2%) | 435 | 61,440 | 9 | 0 | +18.23 ns (hold +0.16 ns) | in M8 build |
 | M8 MEDIUM + HARD bird motion, seeded leap-forward LFSRs | 95 s | 1,125 (3%) | 526 | 61,440 | 9 | 0 | +11.87 ns (hold +0.17 ns) | in M8 build |
 | M8+ audio (score/fail sounds), Numpad 4/6 world speed (commit `2a77c15`) | not recorded | 1,352 (3%) | 809 | 71,680 | 11 | 0 | +11.18 ns (hold +0.118 ns) | reported working by the team |
-| M9 world/lane split, fixed-point network, text screens, mode menu, WATCH AI (demo network), KEY1/SW1 | 95 s | 2,051 (5%) | 1,507 | 418,048 (7%) | 66 (12%) | 4 | +11.30 ns (hold +0.122 ns) | pending |
+| M9 world/lane split, fixed-point network, text screens, mode menu, WATCH AI (demo network), KEY1/SW1 | 95 s | 2,051 (5%) | 1,507 | 418,048 (7%) | 66 (12%) | 4 | +11.30 ns (hold +0.122 ns) | passed (reported by the user, 2026-09-17) |
+| M10 8 real parallel training lanes, throttle, batch scheduler (fixed population), snapshot, training screen | 221 s | 6,591 (16%) | 6,319 | 507,648 (9%) | 78 (14%) | 14 | +10.43 ns (hold +0.113 ns) | not programmed (M12 board test) |
 
 ## M0 — Baseline of the supplied demo
 
@@ -299,3 +300,57 @@ The ML design (M9–M12) was approved with the user's decisions D1–D5; see `DE
   - Worst setup +11.30 ns, worst hold +0.122 ns.
   - The JTAG hub of the In-System Memory Content Editor adds the `altera_reserved_tck` clock, which also meets timing.
 - **Programming file:** `fpga/output_files/controlled_maze.sof`, checksum `0x02282745`.
+
+## M10 — Real parallel evaluation on the training screen (2026-09-17)
+
+Eight real candidate lanes run on the FPGA and the VGA shows exactly those lanes. No evolution yet: M10 evaluates a fixed population (`assets/nn/pop_m10.txt`), with one hand-set controller in each batch next to seven random networks. Design details are in `DESIGN.md` section L.
+
+### What was built
+- **Simulator:** `train_lanes` = one shared `world_engine` + 8 × `train_lane` (`lane_engine` + `feature_lane` + `nn_datapath` + fitness counters + the lane's picture), one `feature_world`, one `nn_sched` and a 64-bit-per-gene lane weight memory. A step is 48 clocks and is ordered like a game frame. A run is seed → restart → 88 GET READY steps → PLAY until no lane is alive and not done.
+- **Fitness counters:** gates, steps, centred steps and completed runs per lane. Fitness = {gates, steps + centred steps}. Dead lanes freeze.
+- **`sim_throttle`:** SIM ×1, ×2, ×4, ×16, ×64, ×256, ×1024, MAX. Numpad 4/6 change it only on the training screen (a second `world_speed_control`, reset ×4).
+- **`world_seeds`:** 15-bit maximal LFSR, 15 steps per draw, two new training worlds (bit 15 = 0) per generation. The validation and test seeds (bit 15 = 1) are constants in `ml_pkg`.
+- **`train_ctrl` (M10 version):** generation = 8 batches × worlds A_g, B_g; fitness memory; `top8_list`; generation best; mean survival; pauses at SIM ≤ ×16.
+- **`train_top`:** throttle, steps-per-second counter, and the atomic per-frame snapshot, granted between steps.
+- **`lane_view_draw`:** the eight 1/4-scale lane windows, with the game's coral and bird art, lane-state borders, and dead lanes darkened and crossed out.
+- **Training screen:** page TRAIN in `screens.txt`. `char_screen` fields are now 43-bit (15 pages, 256 fields, 256 sources, 128 words), with a new BAR format. The text writer starts 64 clocks after the frame starts, after the snapshot.
+- **`mode_fsm`:** TRAIN AI starts the trainer; KEY1 stops it and returns to the mode menu.
+- **Indicators:** LEDR[8:1] = lanes alive, LEDR9 = generation beat, HEX5–3 = generation, HEX2–0 = best gates.
+- **Tools:** `tools/pop_tool.tcl` builds `pop_init.mif`/`.hex`. `sim/run_tests.sh` accepts `SIMDIR=` for parallel runs.
+
+### Tests (new)
+
+| Testbench | What it shows |
+|---|---|
+| `tb_lane_equiv` | 8 lanes against 8 separate `game_logic` + `ai_player` games (same networks, seeds, settings) in all 9 modes at world speeds 0, 3 and 7: 174,881 lane-steps with equal maze offset and collision; equal death step, gates = score, steps, centred steps and completed runs (85 deaths, 131 runs completed at the 1,200-step test limit). Lane 0 is identical next to two different sets of networks. Dead lanes stay frozen (maze, action, counters, picture). Idle lanes stay idle. Accumulators add over two runs and clear on `stageClear` |
+| `tb_train_sched` | 3 generations at MAX (runs cut at 200 steps): every candidate plays exactly A_g and B_g once, in the lane that shows it, with its own genes. The worlds change every generation. The fitness memory, top-8 list (stable sort), generation best, mean survival and evaluation counter match a reference. 232 snapshots all equal the trainer state at the grant, granted between steps, within 48 clocks; a lane is shown DEAD exactly when it died before the grant. The pause after a run at ×16, abort, and restart with a new RUN ID also work |
+| `tb_world_seeds` | 32,767 different training seeds, then the sequence repeats. Bit 15 = 0, never 0. Same RUN ID gives the same sequence, a different RUN ID a different one. A_g ≠ B_g ≠ A_{g−1} for 255 generations. The 12 fixed seeds are distinct with bit 15 = 1. Throttle intervals are exact for all 8 levels (MAX = 49 clocks per step) |
+| `tb_train_view` | 3,686,400 pixels of the lane windows equal a reference renderer (all lane states, random pictures, the bird in front of coral, the backdrop); nothing is drawn outside TRAIN AI |
+| `tb_train_screen` | Whole system: training started with the keys. For 8 frames at ×4, MAX and ×16, every lane label and the header equal the snapshot the windows are drawn from. One snapshot per frame, always before the text writer. LEDs and HEX follow the trainer. Numpad 4 changes only the simulation speed. KEY1 stops training |
+| `tb_char_screen`, `tb_mode_fsm` | Updated for the new field format, the BAR format and the TRAIN page / KEY1 stop |
+
+`tb_render +scenario=train +sim=<level>` records the training screen (`docs/screenshots/m10/`).
+
+### Build (2026-09-17 02:20)
+- **Full compile:** 221 s (Analysis & Synthesis 25 s, Fitter 169 s), 0 errors, 0 critical warnings.
+- **Warnings:** 252. The new ones are 12010-style port-width notes, all fixed, and nothing else. The M9 set is unchanged: `KBDINTF` pin notes, `lpm_rom` tri-states, the `melody_player_1` latch emulation (13004/335093), the `reset_sync` clock note (332060, also in M9), and 276020 on the character RAM.
+- **Resources:** 6,591 ALMs (16%), 6,319 registers, 507,648 memory bits (9%), 78 RAM blocks (14%), 14 DSP blocks (13%).
+
+  | Block | ALMs | Registers |
+  |---|---|---|
+  | `train_top` (total) | 3,549 | 4,579 |
+  | 8 × `train_lane` | ~265 each (about 120 `lane_engine`, 48 `feature_lane`, 47 `nn_datapath`) | ~265 each |
+  | `train_ctrl` | 485 | 676 |
+  | Snapshot and throttle | 339 | 1,441 |
+  | `lane_view_draw` | 285 | 118 |
+  | `char_screen` (now 107 fields) | 659 | 351 |
+
+  The plan estimated about 380 ALMs per lane and 6,900 in total; the measured figures are 265 and 6,591.
+- **Timing:** met in all corners. Worst setup +10.43 ns (Fmax 46.9 MHz against 31.5 MHz), worst hold +0.113 ns.
+- **Programming file:** checksum `0x02E94D6D`. It was not programmed: the next board test is the complete M12 system.
+
+### Measured simulator speed
+A step is 48 clocks plus one clock before the next step starts. At MAX that is **642,857 steps/s for all 8 lanes together** (5.1 million lane-steps/s), 8,857× real time (measured in `tb_world_seeds`). A snapshot delays one step by at most one clock per frame.
+- With the M10 population, the 16 runs of a generation (runs cut at 200 steps in `tb_train_sched`) take about 307,000 clocks (9.7 ms) including loading.
+- A full-length run (88 + 4,095 steps) takes 205,000 clocks = 6.5 ms at MAX.
+- The training screen shows the measured steps per second (STEPS/S) on the board.

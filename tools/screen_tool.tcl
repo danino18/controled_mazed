@@ -25,7 +25,8 @@
 #                                   SDEC (sign + len-1 digits), HEX,
 #                                   WORD (arg = word set), CURSOR (arg = item number:
 #                                   '>' at col when the value equals the item, and the
-#                                   next len-1 cells turn gold)
+#                                   next len-1 cells turn gold), BAR (the first
+#                                   <value> cells are solid blocks, the rest '-')
 #   end
 #
 # Colours: 0 white, 1 gold, 2 cyan, 3 dim, 4 red, 5 green, 6 grey, 7 amber.
@@ -45,10 +46,12 @@ if {$src eq "" || $fontSrc eq "" || $rtlDir eq ""} {
 set COLS 80
 set ROWS 60
 set CELLS [expr {$COLS * $ROWS}]
-set MAX_FIELDS 64
-set MAX_WORDS 64
+set MAX_FIELDS 256
+set MAX_PAGES 15
+set MAX_SOURCES 256
+set MAX_WORDS 128
 set WORD_CHARS 8
-set FORMATS {DEC 0 DECB 1 SDEC 2 HEX 3 WORD 4 CURSOR 5}
+set FORMATS {DEC 0 DECB 1 SDEC 2 HEX 3 WORD 4 CURSOR 5 BAR 6}
 set COLOUR_HTML {0 #dfffff 1 #ffdb00 2 #b6ffff 3 #92b6ff 4 #ff2440 5 #24ff24 6 #6d6d6d 7 #ffb600}
 
 # ---------------------------------------------------------------- glyphs that the font really draws
@@ -147,7 +150,7 @@ while {$i < $n} {
             if {[lsearch -exact $pages $name] >= 0} { fail "$where: page $name defined twice" }
             lappend pages $name
             set pageIndex [llength $pages]
-            if {$pageIndex > 7} { fail "$where: at most 7 pages" }
+            if {$pageIndex > $MAX_PAGES} { fail "$where: at most $MAX_PAGES pages" }
             dict set pageScale $name $scale
             set rows [expr {$scale == 1 ? $ROWS : $ROWS / 2}]
             set cols [expr {$scale == 1 ? $COLS : $COLS / 2}]
@@ -214,7 +217,7 @@ while {$i < $n} {
 }
 
 if {[llength $pages] == 0} { fail "no pages" }
-if {[llength $sources] > 64} { fail "more than 64 sources" }
+if {[llength $sources] > $MAX_SOURCES} { fail "more than $MAX_SOURCES sources" }
 
 # ---------------------------------------------------------------- write the memories
 set mifDir [file join $rtlDir MIF]
@@ -246,12 +249,12 @@ write_mif [file join $mifDir pages.mif] 10 [llength $rom] $rom "[llength $pages]
 set fieldWords {}
 foreach f $fields {
     lassign $f p r c l fmt s a attr
-    # {page 3, row 6, col 7, len 4, fmt 3, src 6, arg 6, attr 4} = 39 bits (MSB first)
-    set v [expr {(wide($p) << 36) | (wide($r) << 30) | (wide($c) << 23) | (wide($l) << 19) |
-                 (wide($fmt) << 16) | (wide($s) << 10) | (wide($a) << 4) | $attr}]
+    # {page 4, row 6, col 7, len 4, fmt 3, src 8, arg 7, attr 4} = 43 bits (MSB first)
+    set v [expr {(wide($p) << 39) | (wide($r) << 33) | (wide($c) << 26) | (wide($l) << 22) |
+                 (wide($fmt) << 19) | (wide($s) << 11) | (wide($a) << 4) | $attr}]
     lappend fieldWords $v
 }
-write_mif [file join $mifDir fields.mif] 39 $MAX_FIELDS $fieldWords "{page, row, col, len, fmt, src, arg, attr}"
+write_mif [file join $mifDir fields.mif] 43 $MAX_FIELDS $fieldWords "{page, row, col, len, fmt, src, arg, attr}"
 
 set wordWords {}
 foreach w $words {
@@ -284,17 +287,17 @@ puts $fh "  localparam int NUM_FIELDS  = [llength $fields];"
 puts $fh "  localparam int MAX_WORDS   = $MAX_WORDS;"
 puts $fh "  localparam int NUM_SOURCES = [llength $sources];"
 puts $fh ""
-puts $fh "  localparam logic \[2:0\] PAGE_NONE = 3'd0;"
+puts $fh "  localparam logic \[3:0\] PAGE_NONE = 4'd0;"
 set mask 0
 set k 0
 foreach p $pages {
     incr k
-    puts $fh [format "  localparam logic \[2:0\] PAGE_%s = 3'd%d;   // scale %d" $p $k [dict get $pageScale $p]]
+    puts $fh [format "  localparam logic \[3:0\] PAGE_%s = 4'd%d;   // scale %d" $p $k [dict get $pageScale $p]]
     if {[dict get $pageScale $p] == 2} { set mask [expr {$mask | (1 << $k)}] }
 }
 set bin ""
-for {set b 7} {$b >= 0} {incr b -1} { append bin [expr {($mask >> $b) & 1}] }
-puts $fh "  localparam logic \[7:0\] PAGE_SCALE2 = 8'b$bin;   // bit p = page p uses 16x16 cells"
+for {set b 15} {$b >= 0} {incr b -1} { append bin [expr {($mask >> $b) & 1}] }
+puts $fh "  localparam logic \[15:0\] PAGE_SCALE2 = 16'b$bin;   // bit p = page p uses 16x16 cells"
 puts $fh ""
 set k 0
 foreach s $sources {
@@ -308,6 +311,7 @@ puts $fh "  localparam logic \[2:0\] FMT_SDEC   = 3'd2;"
 puts $fh "  localparam logic \[2:0\] FMT_HEX    = 3'd3;"
 puts $fh "  localparam logic \[2:0\] FMT_WORD   = 3'd4;"
 puts $fh "  localparam logic \[2:0\] FMT_CURSOR = 3'd5;"
+puts $fh "  localparam logic \[2:0\] FMT_BAR    = 3'd6;"
 puts $fh ""
 puts $fh "endpackage"
 close $fh

@@ -5,12 +5,14 @@
 # Sources are passed as relative paths because the repository path has a space.
 #
 # Usage: sh sim/run_tests.sh [tb_name ...]          (default: every tb_*.sv except tb_render)
+#        SIMDIR=build/sim2 sh sim/run_tests.sh ...   (a second run in parallel)
 #        sh sim/run_tests.sh tb_render +shots=2,40      (writes build/sim/frame_NNN.png)
 
 MODELSIM=${MODELSIM:-/c/intelFPGA_lite/17.0/modelsim_ase/win32aloem}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-SIMDIR="$ROOT/build/sim"
+SIMDIR=${SIMDIR:-"$ROOT/build/sim"}   # another directory (two levels below the root) allows parallel runs
 
+case $SIMDIR in /*) ;; *) SIMDIR="$ROOT/$SIMDIR" ;; esac
 mkdir -p "$SIMDIR"
 cd "$SIMDIR" || exit 1
 rm -rf work RTL
@@ -54,7 +56,7 @@ for tb in $TESTS; do
   fi
 done
 
-for ppm in frame_*.ppm tour_*.ppm watch_*.ppm; do
+for ppm in frame_*.ppm tour_*.ppm watch_*.ppm train_*.ppm; do
   [ -f "$ppm" ] || continue
   perl "$ROOT/tools/ppm2png.pl" "$ppm" "${ppm%.ppm}.png"
 done

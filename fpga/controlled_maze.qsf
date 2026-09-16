@@ -78,6 +78,13 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/feature_lane.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/nn_sched.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/nn_datapath.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/ai_player.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/world_seeds.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/top8_list.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/sim_throttle.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/train_lane.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/train_lanes.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/train_ctrl.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/train_top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/water_background.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/birdBitMap.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/bird_draw.sv
@@ -85,6 +92,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/coral_draw.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/text_draw.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/speed_readout.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/ui_panels.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/lane_view_draw.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/objects_mux_top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/hex_display_top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/UI/char_screen.sv

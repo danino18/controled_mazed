@@ -1,0 +1,28 @@
+# Initial population of the on-chip trainer for M10 (evaluation only, no
+# evolution yet). One hand-set controller per batch, each in a different lane,
+# so every batch shows one network that plays next to seven random ones.
+# Convert with:
+#   quartus_sh -t tools/pop_tool.tcl assets/nn/pop_m10.txt fpga/RTL/MIF/pop_init.mif fpga/RTL/MIF/pop_init.hex
+#
+# Genes (ml_pkg): hidden j = 5j bias, 5j+1..5j+4 weights of
+#   F0 e_next, F1 e_after, F2 v_rel, F3 tau; output = 30 bias, 31..36 weights of h0..h5.
+# Weights are value / 32.
+
+seed 20260917
+
+# batch 0, lane 0: the demo network (assets/nn/demo_net.txt)
+slot 0  1=64 3=8 31=32
+# batch 1, lane 1: stronger gain and damping
+slot 9  1=96 3=16 31=32
+# batch 2, lane 2: weak gain
+slot 18 1=24 3=4 31=32
+# batch 3, lane 3: no damping
+slot 27 1=64 31=32
+# batch 4, lane 4: looks ahead to the following opening
+slot 36 1=48 2=16 3=8 31=32
+# batch 5, lane 5: steers the wrong way (dies at the first column)
+slot 45 1=-64 3=-8 31=32
+# batch 6, lane 6: never moves
+slot 54
+# batch 7, lane 7: heavy damping, output through two neurons
+slot 63 1=64 3=24 6=64 8=24 31=16 32=16

@@ -6,7 +6,7 @@
 //   NO_AI     --TRAIN AI--> SETUP,  --MAIN MENU--> MODE_MENU
 //   GAME      --MAIN MENU on GAME OVER, or KEY1--> MODE_MENU
 //   SETUP     --KEY1--> MODE_MENU
-//   TRAIN     --Enter or KEY1--> MODE_MENU   (training engine: M10)
+//   TRAIN     --KEY1--> MODE_MENU (the training run is stopped)
 //
 // The key pulses given to this module are the raw ones; game_system routes the
 // same keys to game_fsm only while gameKeys is high, so one press is never
@@ -33,7 +33,9 @@ module mode_fsm
     output logic       gameKeys,      // keys reach game_fsm and the maze
     output logic       gameVisible,   // coral, game text and panels are drawn
     output logic       abortGame,     // one clock: game_fsm back to its first menu
-    output logic [2:0] page           // char_screen page
+    output logic       trainAbort,    // one clock: stop the training run
+    output logic       trainScreen,   // the training screen is shown (Numpad 4/6 = simulation speed)
+    output logic [3:0] page           // char_screen page
 );
 
   localparam logic [2:0] MD_MODE_MENU = 3'd0;
@@ -56,10 +58,12 @@ module mode_fsm
     if (!resetN) begin
       mode      <= MD_MODE_MENU;
       cursor    <= ITEM_HUMAN;
-      aiMode    <= 1'b0;
-      abortGame <= 1'b0;
+      aiMode     <= 1'b0;
+      abortGame  <= 1'b0;
+      trainAbort <= 1'b0;
     end else begin
-      abortGame <= 1'b0;
+      abortGame  <= 1'b0;
+      trainAbort <= 1'b0;
 
       if (mode == MD_MODE_MENU || mode == MD_NO_AI) begin
         if (upPulse && cursor != 2'd0)             cursor <= cursor - 2'd1;
@@ -129,9 +133,10 @@ module mode_fsm
         end
 
         MD_TRAIN: begin
-          if (backPulse || enterPulse) begin
-            cursor <= ITEM_TRAIN;
-            mode   <= MD_MODE_MENU;
+          if (backPulse) begin
+            trainAbort <= 1'b1;
+            cursor     <= ITEM_TRAIN;
+            mode       <= MD_MODE_MENU;
           end
         end
 
@@ -143,13 +148,14 @@ module mode_fsm
   assign trainMode   = (mode == MD_SETUP);
   assign gameKeys    = (mode == MD_GAME) || (mode == MD_SETUP);
   assign gameVisible = (mode == MD_GAME) || (mode == MD_SETUP);
+  assign trainScreen = (mode == MD_TRAIN);
 
   always_comb begin
     case (mode)
       MD_MODE_MENU: page = PAGE_MODE;
       MD_NO_AI:     page = PAGE_NOAI;
       MD_SETUP:     page = PAGE_SETUP;
-      MD_TRAIN:     page = PAGE_TRAINSTUB;
+      MD_TRAIN:     page = PAGE_TRAIN;
       default:      page = (aiMode && !gameMenu) ? (debugSw ? PAGE_WATCHDBG : PAGE_WATCH) : PAGE_NONE;
     endcase
   end
