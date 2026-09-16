@@ -26,6 +26,9 @@ package text_pkg;
   localparam logic [2:0] KIND_BEST     = 3'd2;   // last 3 characters = best score
   localparam logic [2:0] KIND_ITEM     = 3'd3;   // column 0 = '>' when item == cursor
   localparam logic [2:0] KIND_NEW_BEST = 3'd4;   // shown (blinking) only after a new best
+  // KIND_SPEED intentionally not added here: line_cfg's case statement hits a
+  // Quartus 17 Verific elaborator crash (confirmed empirically) at 23 entries.
+  // The world-speed readout is drawn by the separate speed_readout.sv instead.
 
   typedef struct packed {
     logic [9:0]               x;

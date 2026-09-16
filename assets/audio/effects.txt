@@ -1,0 +1,24 @@
+# Sound effects for the supplied melody_player_1 (produces fpga/RTL/AUDIO/songs.mif).
+# Convert with: quartus_sh -t tools/audio_tool.tcl assets/audio/effects.txt fpga/RTL/AUDIO/songs.mif
+#
+# One "melody <index> <name>" block per effect, followed by its notes as
+#   <note> <octave> <duration_ms> <gap_ms>
+# note   : do doD re reD mi fa faD sol solD la laD si
+#          (NOT do_H/doDH/re_H - melody_player_1's ToneDecoder table is one
+#          octave wide; go up an octave with the octave field instead.)
+# octave : 3..6 (melody_player_1 maps the stored 2-bit field to octave 3-6)
+# duration/gap : milliseconds, rounded to the nearest 30 ms tick
+#          (melody_player_1 is instantiated with mSecPerTick = 30); 5-bit
+#          field, so 0..930 ms. A melody ends automatically after its last
+#          note (duration = 0 is the end-of-song marker, added automatically).
+#
+# SCORE: short, bright, rising two-note chime - a coral gate was passed.
+melody 0 score
+mi  5 90  30
+do  6 120 0
+
+# FAIL: short, low, falling two-note tone - clearly different register and
+# contour from the score chime, so the two are never confused by ear.
+melody 1 fail
+sol 3 120 30
+do  3 180 0

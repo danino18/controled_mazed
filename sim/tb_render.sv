@@ -20,14 +20,17 @@ module tb_render;
   logic [8:0]  keyCode = 9'h000;
   logic        keyMake = 1'b0;
   logic        keyBreak = 1'b0;
+  logic        muteSw = 1'b0;
   logic [28:0] ovga;
   logic [6:0]  hex0, hex1, hex2, hex3, hex4, hex5;
   logic [9:0]  ledr;
+  logic [15:0] audioSample;
 
   game_system dut (
       .clk(clk), .resetN(resetN), .keyCode(keyCode), .keyMake(keyMake), .keyBreak(keyBreak),
+      .muteSw(muteSw),
       .OVGA(ovga), .HEX0(hex0), .HEX1(hex1), .HEX2(hex2), .HEX3(hex3), .HEX4(hex4), .HEX5(hex5),
-      .LEDR(ledr));
+      .LEDR(ledr), .audioSample(audioSample));
 
   defparam dut.gameLogic.READY_FRAMES     = 12;
   defparam dut.gameLogic.HIT_FRAMES       = 10;

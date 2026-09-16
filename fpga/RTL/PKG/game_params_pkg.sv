@@ -63,8 +63,16 @@ package game_params_pkg;
   localparam int MAZE_STEP_MAX   = 4;             // px per frame after a short hold
   localparam int MAZE_OFFSET_MAX = GAP_CENTER_MAX - GAP_BASE_MIN;
 
-  // World scroll speed, 1/64 px per frame (SW[2:0] control arrives in M9).
-  localparam int WORLD_STEP_DEFAULT = 128;        // 2.0 px per frame
+  // World/coral scroll speed, player-adjustable (Numpad 4 faster / Numpad 6
+  // slower via world_speed_control). 1/64 px per frame; level 0..7 spans
+  // 1.0..4.5 px/frame in 0.5 px/frame steps (the range M9's design already
+  // planned for SW[2:0], now driven by the keypad instead of switches).
+  localparam int WORLD_STEP_BASE          = 64;   // level 0: 1.0 px/frame
+  localparam int WORLD_STEP_INCREMENT     = 32;   // +0.5 px/frame per level
+  localparam int WORLD_SPEED_LEVEL_MIN    = 0;
+  localparam int WORLD_SPEED_LEVEL_MAX    = 7;
+  localparam int WORLD_SPEED_LEVEL_RESET  = 2;    // matches the previous fixed 2.0 px/frame
+  localparam int WORLD_SPEED_STEP_FRAMES  = 12;   // ~165 ms per level while held
 
   // ---------------------------------------------------------------- scenery
   localparam int SEABED_TOP = 440;                // highest row of the sand

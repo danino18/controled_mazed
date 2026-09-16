@@ -1,13 +1,15 @@
 // Decodes the game's keys from the keyboard's {keyCode, make, break} stream
 // with the supplied singleKeyDecoder:
 //   Arrow Up 9'h175 or Numpad 8 9'h075, Arrow Down 9'h172 or Numpad 2 9'h072,
-//   Enter 9'h05A, keypad Enter 9'h15A.
-// Held levels drive the maze; one-clock press pulses drive the menus
+//   Enter 9'h05A, keypad Enter 9'h15A, Numpad 4 9'h06B, Numpad 6 9'h074.
+// Held levels drive the maze/speed; one-clock press pulses drive the menus
 // (PS/2 auto-repeat keeps a key "pressed" and does not create new pulses).
 //
-// Numpad 8/2/Enter are the primary controls: the only keyboard on this board
-// is a standalone numeric keypad. Arrow Up/Down and main Enter are kept too,
-// in case a full keyboard is used instead; both sources are simply OR'd.
+// Numpad 8/2/4/6/Enter are the primary controls: the only keyboard on this
+// board is a standalone numeric keypad. Arrow Up/Down and main Enter are
+// kept too, in case a full keyboard is used instead; both sources are simply
+// OR'd. Numpad 4/6 (world speed) have no full-keyboard equivalent wired up,
+// since they are a keypad-only addition with no natural arrow-key analogue.
 
 module key_input (
     input  logic       clk,
@@ -19,7 +21,9 @@ module key_input (
     output logic       downHeld,
     output logic       upPulse,
     output logic       downPulse,
-    output logic       enterPulse
+    output logic       enterPulse,
+    output logic       speedUpHeld,     // Numpad 4: world scroll faster
+    output logic       speedDownHeld    // Numpad 6: world scroll slower
 );
 
   logic arrowUpHeld, arrowUpPulse, pad8Held, pad8Pulse;
@@ -49,6 +53,16 @@ module key_input (
   singleKeyDecoder #(.KEY_VALUE(9'h15A)) padEnter (
       .clk(clk), .resetN(resetN), .keyCode(keyCode), .make(keyMake), .brakee(keyBreak),
       .keyLatch(), .keyRisingEdgePulse(padEnterPulse), .keyIsPressed());
+
+  // Numpad 4 = faster, Numpad 6 = slower (per the user's explicit mapping;
+  // the keypad's printed left/right arrows are not used as a direction cue).
+  singleKeyDecoder #(.KEY_VALUE(9'h06B)) numpad4 (
+      .clk(clk), .resetN(resetN), .keyCode(keyCode), .make(keyMake), .brakee(keyBreak),
+      .keyLatch(), .keyRisingEdgePulse(), .keyIsPressed(speedUpHeld));
+
+  singleKeyDecoder #(.KEY_VALUE(9'h074)) numpad6 (
+      .clk(clk), .resetN(resetN), .keyCode(keyCode), .make(keyMake), .brakee(keyBreak),
+      .keyLatch(), .keyRisingEdgePulse(), .keyIsPressed(speedDownHeld));
 
   assign upHeld     = arrowUpHeld   || pad8Held;
   assign downHeld   = arrowDownHeld || pad2Held;

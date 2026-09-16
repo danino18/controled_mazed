@@ -23,6 +23,8 @@ module game_logic
     input  logic                         upPulse,
     input  logic                         downPulse,
     input  logic                         enterPulse,
+    input  logic                         speedUpHeld,
+    input  logic                         speedDownHeld,
 
     // future AI steering (see control_mux)
     input  logic                         aiMode,
@@ -52,7 +54,16 @@ module game_logic
     // score
     output logic [2:0][3:0]              score,
     output logic [2:0][3:0]              best,
-    output logic                         newBest
+    output logic                         newBest,
+
+    // world/coral scroll speed (Numpad 4/6)
+    output logic [2:0]                   speedLevel,
+
+    // raw one-clock events for sound_engine (game_system): tied to the exact
+    // same pulses that award the point and commit the round, so a sound
+    // cannot fire without its matching game event, or vice versa
+    output logic                         scoreEvent,
+    output logic                         failEvent
 );
 
   // ---------------------------------------------------------------- game flow
@@ -163,6 +174,19 @@ module game_logic
       .mazeVy    (mazeVy)
   );
 
+  // ---------------------------------------------------------------- world/coral scroll speed
+  logic [11:0] worldStep;
+
+  world_speed_control speedControl (
+      .clk          (clk),
+      .resetN       (resetN),
+      .tick         (tickMove),
+      .speedUpHeld  (speedUpHeld),
+      .speedDownHeld(speedDownHeld),
+      .speedLevel   (speedLevel),
+      .worldStep    (worldStep)
+  );
+
   // ---------------------------------------------------------------- coral, collision, score
   logic scorePulse;
 
@@ -174,7 +198,7 @@ module game_logic
       .run        (worldRun),
       .restart    (roundStart),
       .columnCount(columnCount),
-      .worldStep  (12'(WORLD_STEP_DEFAULT)),
+      .worldStep  (worldStep),
       .mazeOffset (mazeOffset),
       .rnd        (worldRnd),
       .active     (colActive),
@@ -207,5 +231,8 @@ module game_logic
       .best      (best),
       .newBest   (newBest)
   );
+
+  assign scoreEvent = scorePulse;
+  assign failEvent  = roundOver;
 
 endmodule

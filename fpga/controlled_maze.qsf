@@ -33,6 +33,12 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/VGA/VGA_Controller.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/VGA/square_object.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/Seg7/SEG7.SV
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/AUDIO/SinTable.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/AUDIO/ToneDecoder.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/AUDIO/prescaler.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/AUDIO/addr_counter.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/AUDIO/Mili_sec_counter.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/AUDIO/melody_player_1.sv
+set_global_assignment -name QXP_FILE audio_codec_controller.QXP
 set_global_assignment -name QXP_FILE KBDINTF.qxp
 set_global_assignment -name VERILOG_FILE RTL/KEYBOARDX/kbd_wrapper.v
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/KEYBOARDX/singleKeyDecoder.sv
@@ -57,12 +63,15 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/bird_trajectory.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/obstacle_manager.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/collision_detect.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/score_bcd.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/world_speed_control.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/sound_engine.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/game_logic.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/water_background.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/birdBitMap.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/bird_draw.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/coral_draw.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/text_draw.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/speed_readout.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/ui_panels.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/objects_mux_top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/hex_display_top.sv
@@ -243,13 +252,24 @@ set_location_assignment PIN_AK22 -to OVGA[27]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to OVGA[27]
 set_location_assignment PIN_AK21 -to OVGA[28]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to OVGA[28]
-# ---- audio_out
-set_location_assignment PIN_AH30 -to AUD_XCK
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AUD_XCK
-set_location_assignment PIN_AF29 -to AUD_DACDAT
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AUD_DACDAT
 # ---- ps2
 set_location_assignment PIN_AB25 -to PS2_CLK
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to PS2_CLK
 set_location_assignment PIN_AA25 -to PS2_DAT
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to PS2_DAT
+# ---- sw0
+set_location_assignment PIN_AB30 -to SW0
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SW0
+# ---- audio
+set_location_assignment PIN_AH29 -to AUD_ADCLRCK
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AUD_ADCLRCK
+set_location_assignment PIN_AF30 -to AUD_BCLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AUD_BCLK
+set_location_assignment PIN_AF29 -to AUD_DACDAT
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AUD_DACDAT
+set_location_assignment PIN_AH30 -to AUD_XCK
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AUD_XCK
+set_location_assignment PIN_Y24 -to AUD_I2C_SCLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AUD_I2C_SCLK
+set_location_assignment PIN_Y23 -to AUD_I2C_SDAT
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AUD_I2C_SDAT

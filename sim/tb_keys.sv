@@ -15,14 +15,16 @@ module tb_keys;
   logic       keyMake = 1'b0;
   logic       keyBreak = 1'b0;
   logic       upHeld, downHeld, upPulse, downPulse, enterPulse;
+  logic       speedUpHeld, speedDownHeld;
 
   key_input dut (
       .clk(clk), .resetN(resetN), .keyCode(keyCode), .keyMake(keyMake), .keyBreak(keyBreak),
       .upHeld(upHeld), .downHeld(downHeld), .upPulse(upPulse), .downPulse(downPulse),
-      .enterPulse(enterPulse));
+      .enterPulse(enterPulse), .speedUpHeld(speedUpHeld), .speedDownHeld(speedDownHeld));
 
   localparam logic [8:0] UP = 9'h175, DOWN = 9'h172, ENTER = 9'h05A, PAD_ENTER = 9'h15A;
   localparam logic [8:0] PAD_8 = 9'h075, PAD_2 = 9'h072, SPACE = 9'h029;
+  localparam logic [8:0] PAD_4 = 9'h06B, PAD_6 = 9'h074;
 
   int errors = 0;
   int upPulses = 0, downPulses = 0, enterPulses = 0;
@@ -117,6 +119,33 @@ module tb_keys;
     send(UP, 0);                                    // a new press gives a new pulse
     send(UP, 1);
     expect_counts(5, 2, 2, "after second Up press");
+
+    // ---------------------------------------------------------------- Numpad 4/6 (world speed)
+    // Held-only: no menu-cursor pulse output exists for these, and they must
+    // not affect upHeld/downHeld/upPulse/downPulse/enterPulse in any way.
+    send(PAD_4, 0);
+    if (!speedUpHeld || speedDownHeld) fail("Numpad 4 press not held");
+    if (upHeld || downHeld) fail("Numpad 4 leaked into up/down");
+    expect_counts(5, 2, 2, "after Numpad 4 press (no change expected)");
+    repeat (5) send(PAD_4, 0);                       // auto-repeat
+    if (!speedUpHeld) fail("Numpad 4 released by auto-repeat");
+    send(PAD_4, 1);
+    if (speedUpHeld) fail("Numpad 4 break did not release");
+
+    send(PAD_6, 0);
+    if (speedUpHeld || !speedDownHeld) fail("Numpad 6 press not held");
+    if (upHeld || downHeld) fail("Numpad 6 leaked into up/down");
+    send(PAD_6, 1);
+    if (speedDownHeld) fail("Numpad 6 break did not release");
+
+    // both held together: both outputs simply reflect their own key
+    send(PAD_4, 0);
+    send(PAD_6, 0);
+    if (!speedUpHeld || !speedDownHeld) fail("Numpad 4+6 not both held");
+    send(PAD_4, 1);
+    send(PAD_6, 1);
+    if (speedUpHeld || speedDownHeld) fail("Numpad 4+6 not both released");
+    expect_counts(5, 2, 2, "after Numpad 4/6 (still no change to up/down/enter)");
 
     if (errors == 0) $display("PASS: tb_keys");
     else             $display("FAIL: tb_keys (%0d errors)", errors);

@@ -44,16 +44,23 @@ module tb_autopilot;
   logic [NUM_COLUMNS-1:0]       hitColumn;
   logic [2:0][3:0]              score, best;
   logic                         newBest;
+  logic [2:0]                   speedLevel;
+  logic                         scoreEvent, failEvent;
 
+  // World speed is untouched here (0,0 keeps it at its reset default, 2 -> the
+  // same 2.0 px/frame this testbench's assertions were written against);
+  // world_speed_control itself is covered separately in tb_world_speed.sv.
   game_logic #(.READY_FRAMES(10), .HIT_FRAMES(10), .OVER_LOCK_FRAMES(3)) dut (
       .clk(clk), .resetN(resetN), .tickMove(tickMove), .tickCheck(tickCheck), .tickState(tickState),
       .upHeld(upHeld), .downHeld(downHeld), .upPulse(upPulse), .downPulse(downPulse),
-      .enterPulse(enterPulse), .aiMode(1'b0), .aiUp(1'b0), .aiDown(1'b0), .aiValid(1'b0),
+      .enterPulse(enterPulse), .speedUpHeld(1'b0), .speedDownHeld(1'b0),
+      .aiMode(1'b0), .aiUp(1'b0), .aiDown(1'b0), .aiValid(1'b0),
       .screen(screen), .difficulty(difficulty), .columnCount(columnCount), .menuCursor(menuCursor),
       .stateFrames(stateFrames), .birdY(birdY), .birdVy(birdVy), .birdTrajState(birdTrajState),
       .mazeOffset(mazeOffset), .colActive(colActive), .colX(colX), .gapTop(gapTop),
       .gapBottom(gapBottom), .collision(collision), .hitColumn(hitColumn), .score(score),
-      .best(best), .newBest(newBest));
+      .best(best), .newBest(newBest), .speedLevel(speedLevel),
+      .scoreEvent(scoreEvent), .failEvent(failEvent));
 
   int errors = 0;
   bit autopilot = 1'b0;

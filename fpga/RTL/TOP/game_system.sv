@@ -11,6 +11,7 @@ module game_system
     input  logic [8:0]  keyCode,      // from the keyboard block
     input  logic        keyMake,
     input  logic        keyBreak,
+    input  logic        muteSw,       // SW0: 1 = mute (audio only; never gates gameplay)
     output logic [28:0] OVGA,
     output logic [6:0]  HEX0,
     output logic [6:0]  HEX1,
@@ -18,7 +19,8 @@ module game_system
     output logic [6:0]  HEX3,
     output logic [6:0]  HEX4,
     output logic [6:0]  HEX5,
-    output logic [9:0]  LEDR
+    output logic [9:0]  LEDR,
+    output logic [15:0] audioSample   // signed PCM; controlled_maze_top feeds this to the codec
 );
 
   // ---------------------------------------------------------------- VGA timing
@@ -61,18 +63,21 @@ module game_system
 
   // ---------------------------------------------------------------- keyboard
   logic upHeld, downHeld, upPulse, downPulse, enterPulse;
+  logic speedUpHeld, speedDownHeld;
 
   key_input keys (
-      .clk       (clk),
-      .resetN    (resetN),
-      .keyCode   (keyCode),
-      .keyMake   (keyMake),
-      .keyBreak  (keyBreak),
-      .upHeld    (upHeld),
-      .downHeld  (downHeld),
-      .upPulse   (upPulse),
-      .downPulse (downPulse),
-      .enterPulse(enterPulse)
+      .clk          (clk),
+      .resetN       (resetN),
+      .keyCode      (keyCode),
+      .keyMake      (keyMake),
+      .keyBreak     (keyBreak),
+      .upHeld       (upHeld),
+      .downHeld     (downHeld),
+      .upPulse      (upPulse),
+      .downPulse    (downPulse),
+      .enterPulse   (enterPulse),
+      .speedUpHeld  (speedUpHeld),
+      .speedDownHeld(speedDownHeld)
   );
 
   // ---------------------------------------------------------------- game rules
@@ -94,6 +99,8 @@ module game_system
   logic [2:0][3:0]              score;
   logic [2:0][3:0]              best;
   logic                         newBest;
+  logic [2:0]                   speedLevel;
+  logic                         scoreEvent, failEvent;
 
   game_logic gameLogic (
       .clk          (clk),
@@ -106,6 +113,8 @@ module game_system
       .upPulse      (upPulse),
       .downPulse    (downPulse),
       .enterPulse   (enterPulse),
+      .speedUpHeld  (speedUpHeld),
+      .speedDownHeld(speedDownHeld),
       .aiMode       (1'b0),          // AI arrives in the ML phase
       .aiUp         (1'b0),
       .aiDown       (1'b0),
@@ -127,7 +136,22 @@ module game_system
       .hitColumn    (hitColumn),
       .score        (score),
       .best         (best),
-      .newBest      (newBest)
+      .newBest      (newBest),
+      .speedLevel   (speedLevel),
+      .scoreEvent   (scoreEvent),
+      .failEvent    (failEvent)
+  );
+
+  // ---------------------------------------------------------------- sound
+  sound_engine sound (
+      .clk         (clk),
+      .resetN      (resetN),
+      .scoreTrigger(scoreEvent),
+      .failTrigger (failEvent),
+      .mute        (muteSw),
+      .audioSample (audioSample),
+      .playingScore(),   // test-only debug outputs; tb_sound.sv instantiates sound_engine directly
+      .playingFail ()
   );
 
   logic inMenu, crashed, flash;
@@ -200,6 +224,20 @@ module game_system
       .RGBout        (textRGB)
   );
 
+  logic   speedDR;
+  color_t speedRGB;
+
+  speed_readout speedReadout (
+      .clk           (clk),
+      .resetN        (resetN),
+      .pixelX        (pixelX),
+      .pixelY        (pixelY),
+      .screen        (screen),
+      .speedLevel    (speedLevel),
+      .drawingRequest(speedDR),
+      .RGBout        (speedRGB)
+  );
+
   logic   panelDR;
   color_t panelRGB;
 
@@ -218,6 +256,8 @@ module game_system
   objects_mux_top mux (
       .clk                (clk),
       .resetN             (resetN),
+      .speedDrawingRequest(speedDR),
+      .speedRGB           (speedRGB),
       .textDrawingRequest (textDR),
       .textRGB            (textRGB),
       .panelDrawingRequest(panelDR),

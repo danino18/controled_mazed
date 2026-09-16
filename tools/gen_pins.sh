@@ -36,8 +36,17 @@ for group in "$@"; do
                AJ21 AJ20 AH20 AJ19 AH19 AJ17 AJ16 AK16 \
                AK19 AK18 AJ22 AK22 AK21 ;;
     ps2)   pin PS2_CLK AB25; pin PS2_DAT AA25 ;;
-    # codec inputs driven by the FPGA (supplied pin.tcl: AUDOUT[5] = AUD_XCK, AUDOUT[4] = AUD_DACDAT)
-    audio_out) pin AUD_XCK AH30; pin AUD_DACDAT AF29 ;;
+    sw0)   pin SW0 AB30 ;;
+    # Full WM8731-class codec I/O (supplied pin.tcl): AUDIN[1]=ADCLRCK,
+    # AUDIN[2]=BCLK (codec drives these); AUDOUT[4]=DACDAT, AUDOUT[5]=XCK,
+    # AUDOUT[6]=I2C_SCLK, AUDOUT[7]=I2C_SDAT (FPGA drives/shares these).
+    audio)
+      pin AUD_ADCLRCK AH29
+      pin AUD_BCLK AF30
+      pin AUD_DACDAT AF29
+      pin AUD_XCK AH30
+      pin AUD_I2C_SCLK Y24
+      pin AUD_I2C_SDAT Y23 ;;
     *) echo "unknown group $group" >&2; exit 1 ;;
   esac
 done

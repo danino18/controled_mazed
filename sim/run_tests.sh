@@ -16,6 +16,7 @@ cd "$SIMDIR" || exit 1
 rm -rf work RTL
 mkdir -p RTL
 cp -r "$ROOT/fpga/RTL/MIF" RTL/ 2>/dev/null
+cp -r "$ROOT/fpga/RTL/AUDIO" RTL/ 2>/dev/null   # melody_player_1's lpm_rom reads RTL/AUDIO/songs.mif
 "$MODELSIM/vlib" work > /dev/null
 
 # RTL sources in project order (packages first), excluding the board top level,
@@ -23,7 +24,7 @@ cp -r "$ROOT/fpga/RTL/MIF" RTL/ 2>/dev/null
 # simulator-friendly copy in sim/models (see each file there).
 SOURCES=$(grep -E "^set_global_assignment -name (SYSTEMVERILOG|VERILOG)_FILE RTL/" "$ROOT/fpga/controlled_maze.qsf" \
           | awk '{print $NF}' | grep -v "TOP/controlled_maze_top.sv" | grep -v "kbd_wrapper.v" \
-          | grep -v "KEYBOARDX/random.sv" \
+          | grep -v "KEYBOARDX/random.sv" | grep -v "AUDIO/melody_player_1.sv" \
           | sed "s|^|../../fpga/|")
 
 # shellcheck disable=SC2086
