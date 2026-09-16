@@ -46,7 +46,7 @@ for tb in $TESTS; do
   echo "$result" | grep -q "^# PASS: $tb" || status=1
 done
 
-for ppm in frame_*.ppm; do
+for ppm in frame_*.ppm tour_*.ppm; do
   [ -f "$ppm" ] || continue
   perl "$ROOT/tools/ppm2png.pl" "$ppm" "${ppm%.ppm}.png"
 done

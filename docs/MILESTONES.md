@@ -10,6 +10,7 @@ Measurements are from Quartus Prime Lite 17.0.0 Build 595, full compile (`quartu
 | M3 scrolling coral column, geometric collision, freeze, sea floor | 61 s | 287 (<1%) | 264 | 57,344 | 8 | 0 | +24.51 ns (hold +0.17 ns) | in M8 build |
 | M4 arrow-key maze control, playable single column | 71 s | 391 (<1%) | 357 | 57,344 | 8 | 0 | +22.47 ns (hold +0.17 ns) | in M8 build |
 | M5 score + best score on VGA HUD and HEX | 74 s | 488 (1%) | 344 | 61,440 | 9 | 0 | +22.63 ns (hold +0.17 ns) | in M8 build |
+| M6 game FSM, menus, GET READY, GAME OVER, restart, main menu, panels | 102 s* | 928 (2%) | 439 | 61,440 | 9 | 0 | +19.10 ns (hold +0.14 ns) | in M8 build |
 
 ## M0 — Baseline of the supplied demo
 
@@ -139,3 +140,25 @@ Design rule: any build without the audio block must keep `AUD_XCK` and `AUD_DACD
 - **Quartus 17 limitations found:**
   - It does not accept struct fields in `localparam` expressions, so the line table uses constant wires instead.
   - A comment that starts with the word "synthesis" is parsed as a synthesis attribute.
+
+\* Compiled while a 4-minute simulation was running on the same PC.
+
+## M6 — Complete game flow
+
+- **`game_fsm`:** `MENU_DIFF → MENU_OBST → READY → PLAY → HIT → GAME_OVER → (RESTART → READY | MAIN MENU → MENU_DIFF)`.
+  - Up/Down move a clamped cursor, and Enter confirms.
+  - Menus reopen on the previous choice.
+  - READY lasts 88 frames (~1.2 s) and HIT lasts 51 (~0.7 s).
+  - GAME_OVER ignores Enter for 36 frames, so a key pressed during the crash cannot skip the score screen.
+  - It emits one-clock `roundStart`, `roundOver` and `menuStart` pulses. The timers are parameters so testbenches can shorten them.
+- **What runs in each screen:**
+  - The coral scrolls only in PLAY.
+  - The player can already steer the coral during GET READY.
+  - The bird bobs (EASY motion) behind the menus, freezes after a crash, and blinks during HIT.
+  - Coral is hidden in the menus.
+- **`ui_panels`:** translucent navy panels (a one-pixel checkerboard) behind the menu, the GET READY text and the HUD, and a larger one behind GAME OVER. A navy bar with a cyan edge marks the selected entry, and a red checkerboard flash covers the screen for the first 8 frames of HIT.
+- **LEDs:** LEDR[4:2] = screen, LEDR[6:5] = difficulty, LEDR[8:7] = column count (for board debugging).
+- **Tests:**
+  - `tb_game_fsm` (report module #1) visits every state and every transition: cursor clamping, remembered choices, exact timer lengths, pulses fired exactly once, the GAME OVER lockout, RESTART keeping the settings, MAIN MENU, and crash signals ignored outside PLAY.
+  - `tb_render +scenario=tour` plays through all screens with scripted key presses and saves 8 screenshots (menu, obstacle menu, GET READY, play, hit flash, game over with each option selected, back to the menu).
+- **Rendering note:** the menu and game-over panels need nearly 1,000 ALMs in total, mostly in the table-driven text renderer. That is still only 2% of the device.

@@ -1,7 +1,7 @@
 // Priority multiplexer choosing the colour of the current pixel.
 // Based on the supplied objects_mux.sv: the first layer with an active drawing
 // request wins; the background has no request and is always last.
-// Order (front to back): text, bird, coral, background.
+// Order (front to back): text, panels, bird, coral, background.
 
 module objects_mux_top
   import palette_pkg::*;
@@ -11,6 +11,9 @@ module objects_mux_top
 
     input  logic   textDrawingRequest,
     input  color_t textRGB,
+
+    input  logic   panelDrawingRequest,
+    input  color_t panelRGB,
 
     input  logic   birdDrawingRequest,
     input  color_t birdRGB,
@@ -28,6 +31,8 @@ module objects_mux_top
       RGBOut <= C_BLACK;
     end else if (textDrawingRequest) begin
       RGBOut <= textRGB;
+    end else if (panelDrawingRequest) begin
+      RGBOut <= panelRGB;
     end else if (birdDrawingRequest) begin
       RGBOut <= birdRGB;
     end else if (coralDrawingRequest) begin

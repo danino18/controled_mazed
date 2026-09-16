@@ -74,39 +74,43 @@ module game_system
       .enterPulse(enterPulse)
   );
 
-  // ---------------------------------------------------------------- round control (temporary until game_fsm, M6)
-  // A round starts after reset; a collision freezes the world; Enter restarts.
-  logic roundStart;
-  logic roundOver;
-  logic started;
-  logic frozen;
-  logic collision;
-
-  always_ff @(posedge clk or negedge resetN) begin
-    if (!resetN) begin
-      started    <= 1'b0;
-      frozen     <= 1'b0;
-      roundStart <= 1'b0;
-      roundOver  <= 1'b0;
-    end else begin
-      roundStart <= 1'b0;
-      roundOver  <= 1'b0;
-      if ((tickState && !started) || (frozen && enterPulse)) begin
-        started    <= 1'b1;
-        roundStart <= 1'b1;
-        frozen     <= 1'b0;
-      end else if (tickState && collision && !frozen) begin
-        frozen    <= 1'b1;
-        roundOver <= 1'b1;
-      end
-    end
-  end
-
-  logic       worldRun;
+  // ---------------------------------------------------------------- game flow
   logic [2:0] screen;
+  logic [1:0] difficulty;
+  logic [1:0] columnCount;
+  logic [1:0] menuCursor;
+  logic [7:0] stateFrames;
+  logic       roundStart;
+  logic       roundOver;
+  logic       menuStart;
+  logic       collision;
 
-  assign worldRun = started && !frozen;
-  assign screen   = frozen ? ST_HIT : ST_PLAY;
+  game_fsm fsm (
+      .clk        (clk),
+      .resetN     (resetN),
+      .tick       (tickState),
+      .upPulse    (upPulse),
+      .downPulse  (downPulse),
+      .enterPulse (enterPulse),
+      .collision  (collision),
+      .state      (screen),
+      .difficulty (difficulty),
+      .columnCount(columnCount),
+      .menuCursor (menuCursor),
+      .stateFrames(stateFrames),
+      .roundStart (roundStart),
+      .roundOver  (roundOver),
+      .menuStart  (menuStart)
+  );
+
+  logic inMenu, worldRun, steerRun, birdRun, crashed, flash;
+
+  assign inMenu   = (screen == ST_MENU_DIFF) || (screen == ST_MENU_OBST);
+  assign worldRun = (screen == ST_PLAY);
+  assign steerRun = (screen == ST_PLAY) || (screen == ST_READY);   // the player may line up the coral while getting ready
+  assign birdRun  = worldRun || inMenu;                               // the bird bobs behind the menus
+  assign crashed  = (screen == ST_HIT) || (screen == ST_GAME_OVER);
+  assign flash    = (screen == ST_HIT) && (stateFrames < 8'd8);
 
   // ---------------------------------------------------------------- game logic
   logic [15:0] rnd;
@@ -128,9 +132,9 @@ module game_system
       .clk      (clk),
       .resetN   (resetN),
       .tick     (tickMove),
-      .run      (worldRun),
-      .restart  (roundStart),
-      .mode     (DIFF_EASY),
+      .run      (birdRun),
+      .restart  (roundStart || menuStart),
+      .mode     (inMenu ? DIFF_EASY : difficulty),
       .rnd      (rnd),
       .birdY    (birdY),
       .birdVy   (birdVy),
@@ -156,7 +160,7 @@ module game_system
       .clk       (clk),
       .resetN    (resetN),
       .tick      (tickMove),
-      .run       (worldRun),
+      .run       (steerRun),
       .restart   (roundStart),
       .moveUp    (ctrlUp),
       .moveDown  (ctrlDown),
@@ -178,7 +182,7 @@ module game_system
       .tickCheck  (tickCheck),
       .run        (worldRun),
       .restart    (roundStart),
-      .columnCount(2'd1),
+      .columnCount(columnCount),
       .worldStep  (12'(WORLD_STEP_DEFAULT)),
       .mazeOffset (mazeOffset),
       .rnd        (rnd),
@@ -230,13 +234,16 @@ module game_system
 
   logic   coralDR;
   color_t coralRGB;
+  logic [NUM_COLUMNS-1:0] coralShown;
+
+  assign coralShown = inMenu ? '0 : colActive;
 
   coral_draw coralDraw (
       .clk           (clk),
       .resetN        (resetN),
       .pixelX        (pixelX),
       .pixelY        (pixelY),
-      .active        (colActive),
+      .active        (coralShown),
       .colX          (colX),
       .gapTop        (gapTop),
       .gapBottom     (gapBottom),
@@ -254,8 +261,8 @@ module game_system
       .pixelY        (pixelY),
       .birdY         (birdY),
       .tick          (tickMove),
-      .animate       (!frozen),
-      .blink         (frozen),
+      .animate       (!crashed),
+      .blink         (screen == ST_HIT),
       .drawingRequest(birdDR),
       .RGBout        (birdRGB)
   );
@@ -269,7 +276,7 @@ module game_system
       .pixelX        (pixelX),
       .pixelY        (pixelY),
       .screen        (screen),
-      .menuCursor    (2'd0),
+      .menuCursor    (menuCursor),
       .scoreDigits   (score),
       .bestDigits    (best),
       .newBest       (newBest),
@@ -278,11 +285,28 @@ module game_system
       .RGBout        (textRGB)
   );
 
+  logic   panelDR;
+  color_t panelRGB;
+
+  ui_panels panels (
+      .clk           (clk),
+      .resetN        (resetN),
+      .pixelX        (pixelX),
+      .pixelY        (pixelY),
+      .screen        (screen),
+      .menuCursor    (menuCursor),
+      .flash         (flash),
+      .drawingRequest(panelDR),
+      .RGBout        (panelRGB)
+  );
+
   objects_mux_top mux (
       .clk                (clk),
       .resetN             (resetN),
       .textDrawingRequest (textDR),
       .textRGB            (textRGB),
+      .panelDrawingRequest(panelDR),
+      .panelRGB           (panelRGB),
       .birdDrawingRequest (birdDR),
       .birdRGB            (birdRGB),
       .coralDrawingRequest(coralDR),
@@ -312,6 +336,7 @@ module game_system
   );
 
   // LEDR[0] is driven by the board top level (PLL locked).
-  assign LEDR = {blink, 6'b0, frozen, resetN, 1'b0};
+  // LEDR[4:2] = game screen, LEDR[6:5] = difficulty, LEDR[8:7] = coral columns.
+  assign LEDR = {blink, columnCount, difficulty, screen, resetN, 1'b0};
 
 endmodule

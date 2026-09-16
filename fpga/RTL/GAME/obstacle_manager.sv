@@ -7,7 +7,9 @@
 
 module obstacle_manager
   import game_params_pkg::*;
-(
+#(
+    parameter int FIRST_X = CORAL_FIRST_X     // left edge of the first column when a round starts
+) (
     input  logic                                clk,
     input  logic                                resetN,
     input  logic                                tickMove,
@@ -73,11 +75,11 @@ module obstacle_manager
 
       always_ff @(posedge clk or negedge resetN) begin
         if (!resetN) begin
-          xFx     <= 19'(CORAL_FIRST_X * FX);
+          xFx     <= 19'(FIRST_X * FX);
           gapBase <= 9'(GAP_BASE_MIN);
           passed  <= 1'b0;
         end else if (restart) begin
-          xFx     <= 19'((CORAL_FIRST_X + i * int'(spacing)) * FX);
+          xFx     <= 19'((FIRST_X + i * int'(spacing)) * FX);
           gapBase <= 9'(GAP_BASE_MIN) + 9'(rndBits);
           passed  <= 1'b0;
         end else begin

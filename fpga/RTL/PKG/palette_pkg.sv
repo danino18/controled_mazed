@@ -40,6 +40,12 @@ package palette_pkg;
   localparam color_t C_TEXT_DIM    = {3'd4, 3'd5, 2'd3};
   localparam color_t C_TEXT_RED    = {3'd7, 3'd1, 2'd1};
 
+  // Panels.
+  localparam color_t C_PANEL       = {3'd0, 3'd0, 2'd1};   // drawn on every other pixel
+  localparam color_t C_BAR         = {3'd0, 3'd0, 2'd1};
+  localparam color_t C_BAR_EDGE    = {3'd3, 3'd6, 2'd3};
+  localparam color_t C_FLASH       = {3'd7, 3'd1, 2'd1};
+
   // Sea floor.
   localparam color_t C_SAND_LIGHT  = {3'd6, 3'd5, 2'd1};
   localparam color_t C_SAND        = {3'd5, 3'd4, 2'd1};

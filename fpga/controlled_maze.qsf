@@ -48,6 +48,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/leading_zero_blank.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/lfsr_rng.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DEBUG/fps_meter.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/frame_sequencer.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/game_fsm.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/key_input.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/control_mux.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/maze_control.sv
@@ -60,6 +61,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/birdBitMap.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/bird_draw.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/coral_draw.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/text_draw.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/ui_panels.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/objects_mux_top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/hex_display_top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/TOP/game_system.sv
