@@ -45,6 +45,11 @@ package game_params_pkg;
   localparam int CORAL_CORE_INSET  = 4;
   localparam int CORAL_TIP_FORGIVE = 8;
 
+  // Player control of the shared vertical offset. MAZE_STEP_MAX must be at least
+  // the bird's fastest vertical speed so the player can always keep up.
+  localparam int MAZE_STEP_MAX   = 4;             // px per frame after a short hold
+  localparam int MAZE_OFFSET_MAX = GAP_CENTER_MAX - GAP_BASE_MIN;
+
   // World scroll speed, 1/64 px per frame (SW[2:0] control arrives in M9).
   localparam int WORLD_STEP_DEFAULT = 128;        // 2.0 px per frame
 

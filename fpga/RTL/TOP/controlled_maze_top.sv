@@ -1,10 +1,13 @@
 // Controlled Maze - board top level (DE10-Standard).
-// Board-specific parts only: PLL, reset synchroniser, codec tie-offs.
+// Board-specific parts only: PLL, reset synchroniser, precompiled keyboard
+// block, codec tie-offs.
 // The game itself is in game_system.
 
 module controlled_maze_top (
     input  logic        CLOCK_50,
     input  logic        resetN_pin,     // KEY[0], active low
+    input  logic        PS2_CLK,
+    input  logic        PS2_DAT,
     output logic [9:0]  LEDR,
     output logic [6:0]  HEX0,
     output logic [6:0]  HEX1,
@@ -42,17 +45,34 @@ module controlled_maze_top (
       .resetN     (resetN)
   );
 
+  logic [8:0] keyCode;
+  logic       keyMake;
+  logic       keyBreak;
+
+  kbd_wrapper keyboard (
+      .clk    (clk),
+      .resetN (resetN),
+      .PS2_CLK(PS2_CLK),
+      .PS2_DAT(PS2_DAT),
+      .keyCode(keyCode),
+      .make   (keyMake),
+      .brakk  (keyBreak)
+  );
+
   game_system game (
-      .clk   (clk),
-      .resetN(resetN),
-      .OVGA  (OVGA),
-      .HEX0  (HEX0),
-      .HEX1  (HEX1),
-      .HEX2  (HEX2),
-      .HEX3  (HEX3),
-      .HEX4  (HEX4),
-      .HEX5  (HEX5),
-      .LEDR  (gameLeds)
+      .clk     (clk),
+      .resetN  (resetN),
+      .keyCode (keyCode),
+      .keyMake (keyMake),
+      .keyBreak(keyBreak),
+      .OVGA    (OVGA),
+      .HEX0    (HEX0),
+      .HEX1    (HEX1),
+      .HEX2    (HEX2),
+      .HEX3    (HEX3),
+      .HEX4    (HEX4),
+      .HEX5    (HEX5),
+      .LEDR    (gameLeds)
   );
 
   assign LEDR = {gameLeds[9:1], pllLocked};

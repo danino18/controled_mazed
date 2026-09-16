@@ -13,6 +13,8 @@ set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL
 set_global_assignment -name SMART_RECOMPILE ON
 # LogicLock licence notice, also disabled in the supplied Lab1Demo.qsf
 set_global_assignment -name MESSAGE_DISABLE 292013
+# Imported KBDINTF.qxp is a black box during synthesis (also disabled in Lab1Demo.qsf)
+set_global_assignment -name MESSAGE_DISABLE 12240
 set_global_assignment -name PHYSICAL_SYNTHESIS_EFFORT FAST
 set_global_assignment -name FITTER_EFFORT FAST_FIT
 set_global_assignment -name PHYSICAL_SYNTHESIS_COMBO_LOGIC OFF
@@ -31,6 +33,9 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/VGA/VGA_Controller.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/VGA/square_object.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/Seg7/SEG7.SV
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/AUDIO/SinTable.sv
+set_global_assignment -name QXP_FILE KBDINTF.qxp
+set_global_assignment -name VERILOG_FILE RTL/KEYBOARDX/kbd_wrapper.v
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/KEYBOARDX/singleKeyDecoder.sv
 
 # ---- project sources (packages first)
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/PKG/palette_pkg.sv
@@ -41,6 +46,9 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/leading_zero_blank.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/lfsr_rng.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DEBUG/fps_meter.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/frame_sequencer.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/key_input.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/control_mux.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/maze_control.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/bird_trajectory.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/obstacle_manager.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/collision_detect.sv
@@ -232,3 +240,8 @@ set_location_assignment PIN_AH30 -to AUD_XCK
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AUD_XCK
 set_location_assignment PIN_AF29 -to AUD_DACDAT
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AUD_DACDAT
+# ---- ps2
+set_location_assignment PIN_AB25 -to PS2_CLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to PS2_CLK
+set_location_assignment PIN_AA25 -to PS2_DAT
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to PS2_DAT

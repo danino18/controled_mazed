@@ -7,6 +7,9 @@ module game_system
 (
     input  logic        clk,
     input  logic        resetN,
+    input  logic [8:0]  keyCode,      // from the keyboard block
+    input  logic        keyMake,
+    input  logic        keyBreak,
     output logic [28:0] OVGA,
     output logic [6:0]  HEX0,
     output logic [6:0]  HEX1,
@@ -45,8 +48,24 @@ module game_system
       .tickState   (tickState)
   );
 
+  // ---------------------------------------------------------------- keyboard
+  logic upHeld, downHeld, upPulse, downPulse, enterPulse;
+
+  key_input keys (
+      .clk       (clk),
+      .resetN    (resetN),
+      .keyCode   (keyCode),
+      .keyMake   (keyMake),
+      .keyBreak  (keyBreak),
+      .upHeld    (upHeld),
+      .downHeld  (downHeld),
+      .upPulse   (upPulse),
+      .downPulse (downPulse),
+      .enterPulse(enterPulse)
+  );
+
   // ---------------------------------------------------------------- round control (temporary until game_fsm, M6)
-  // A round starts after reset; a collision freezes the world.
+  // A round starts after reset; a collision freezes the world; Enter restarts.
   logic roundStart;
   logic started;
   logic frozen;
@@ -59,7 +78,7 @@ module game_system
       roundStart <= 1'b0;
     end else begin
       roundStart <= 1'b0;
-      if (tickState && !started) begin
+      if ((tickState && !started) || (frozen && enterPulse)) begin
         started    <= 1'b1;
         roundStart <= 1'b1;
         frozen     <= 1'b0;
@@ -98,6 +117,34 @@ module game_system
       .trajState(birdTrajState)
   );
 
+  // ---------------------------------------------------------------- maze steering
+  logic ctrlUp, ctrlDown;
+  logic signed [9:0] mazeOffset;
+  logic signed [4:0] mazeVy;
+
+  control_mux steering (
+      .aiMode  (1'b0),          // AI arrives in the ML phase
+      .kbdUp   (upHeld),
+      .kbdDown (downHeld),
+      .aiUp    (1'b0),
+      .aiDown  (1'b0),
+      .aiValid (1'b0),
+      .ctrlUp  (ctrlUp),
+      .ctrlDown(ctrlDown)
+  );
+
+  maze_control maze (
+      .clk       (clk),
+      .resetN    (resetN),
+      .tick      (tickMove),
+      .run       (started && !frozen),
+      .restart   (roundStart),
+      .moveUp    (ctrlUp),
+      .moveDown  (ctrlDown),
+      .mazeOffset(mazeOffset),
+      .mazeVy    (mazeVy)
+  );
+
   logic [NUM_COLUMNS-1:0]       colActive;
   logic [NUM_COLUMNS-1:0][10:0] colX;
   logic [NUM_COLUMNS-1:0][9:0]  gapTop;
@@ -114,7 +161,7 @@ module game_system
       .restart    (roundStart),
       .columnCount(2'd1),
       .worldStep  (12'(WORLD_STEP_DEFAULT)),
-      .mazeOffset (10'sd0),
+      .mazeOffset (mazeOffset),
       .rnd        (rnd),
       .active     (colActive),
       .colX       (colX),

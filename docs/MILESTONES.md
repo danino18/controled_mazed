@@ -8,6 +8,7 @@ Measurements are from Quartus Prime Lite 17.0.0 Build 595, full compile (`quartu
 | M1 skeleton: water gradient, static bird box, FPS meter, codec held silent | 45 s | 90 (<1%) | 118 | 0 | 0 | 0 | +27.32 ns | passed (audio silent after fix) |
 | M2 animated bird sprite, EASY sine trajectory | 51 s | 162 (<1%) | 178 | 24,576 | 4 | 0 | +24.646 ns | in M8 build |
 | M3 scrolling coral column, geometric collision, freeze, sea floor | 61 s | 287 (<1%) | 264 | 57,344 | 8 | 0 | +24.51 ns (hold +0.17 ns) | in M8 build |
+| M4 arrow-key maze control, playable single column | 71 s | 391 (<1%) | 357 | 57,344 | 8 | 0 | +22.47 ns (hold +0.17 ns) | in M8 build |
 
 ## M0 — Baseline of the supplied demo
 
@@ -106,3 +107,18 @@ Design rule: any build without the audio block must keep `AUD_XCK` and `AUD_DACD
   - `tb_obstacles`: 1, 2 and 3 columns over 1,500 frames each, checking movement, wrap-around, spacing, scoring, opening size and clamping, the shared offset, and the freeze.
   - `tb_water`: also checks the sand.
 - **Renders:** the frames show the column scrolling, the opening, the sea floor, and the freeze at the point where the core reaches the hitbox.
+
+## M4 — Arrow-key maze control
+
+- **Keyboard block:** the supplied `KBDINTF.qxp` (from `VGA_DEMO_Students.qar`) is used as-is. It is clocked from the 31.5 MHz pixel clock, like the demo; the demo's timing report shows only the PLL clock domain. `kbd_wrapper.v` is plain Verilog because KBDINTF has an output named `break`, which is reserved in SystemVerilog.
+- **Key decoding:** `key_input` uses four copies of the supplied `singleKeyDecoder` (unchanged, from `KBD09091201.qar`):
+  - Arrow Up `9'h175` and Arrow Down `9'h172` give held levels for steering and press pulses for menus.
+  - Enter `9'h05A` and keypad Enter `9'h15A` are combined into one confirm pulse.
+- **Steering path:** `control_mux` (human/AI; the AI side is tied off) feeds `maze_control`. It holds the single shared vertical offset, clamped to ±224. While a key is held the speed ramps 1→2→3→4 px/frame every 4 frames, so taps give fine control. `MAZE_STEP_MAX` = 4 is at least the bird's top speed.
+- **Restart:** Enter restarts the round after a collision (temporary until M6).
+- **Tests:**
+  - `tb_keys`: press pulses, held levels, auto-repeat, numpad 8/2 (same scan code without the E0 prefix) ignored, and both Enter keys.
+  - `tb_maze`: the exact ramp sequence, clamping at both ends, no motion with both or neither key, the freeze, and restart.
+- **Warnings (noise, not errors):**
+  - `KBDINTF.qxp` carries the demo project's pin assignments. Quartus reports 36 × warning 15706 for demo nodes that don't exist here (`ADC_*`, `AUDOUT[*]`, `SW[*]`, …). Every node name shared with this design maps to the same pin.
+  - Warning 12240 (imported black box) is disabled, as in `Lab1Demo.qsf`.

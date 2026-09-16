@@ -16,8 +16,12 @@ module tb_render;
   logic [6:0]  hex0, hex1, hex2, hex3, hex4, hex5;
   logic [9:0]  ledr;
 
+  logic [8:0] keyCode = 9'h000;
+  logic       keyMake = 1'b0;
+  logic       keyBreak = 1'b0;
+
   game_system dut (
-      .clk(clk), .resetN(resetN), .OVGA(ovga),
+      .clk(clk), .resetN(resetN), .keyCode(keyCode), .keyMake(keyMake), .keyBreak(keyBreak), .OVGA(ovga),
       .HEX0(hex0), .HEX1(hex1), .HEX2(hex2), .HEX3(hex3), .HEX4(hex4), .HEX5(hex5),
       .LEDR(ledr));
 
