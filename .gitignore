@@ -1,0 +1,36 @@
+# Quartus generated output
+db/
+incremental_db/
+output_files/
+qdb/
+greybox_tmp/
+hc_output/
+simulation/
+*.rpt
+*.summary
+*.smsg
+*.done
+*.jdi
+*.pin
+*.sof
+*.pof
+*.sld
+*.qws
+*.bak
+*.orig
+*.qarlog
+*assignment_defaults.qdf
+PLLJ_PLLSPE_INFO.txt
+c5_pin_model_dump.txt
+*.restore.rpt
+
+# ModelSim
+sim/work/
+sim/**/work/
+transcript
+*.wlf
+*.vstf
+wlf*
+
+# Supplied .qar archives restored for reference (regenerable from qar_files_from_labs/)
+reference/
