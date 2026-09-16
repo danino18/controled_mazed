@@ -199,3 +199,28 @@ Only the trajectory generator changes between difficulties (`bird_trajectory`); 
   - The one-bit-per-frame LFSR produced correlated targets; it now leaps 16 steps per frame.
 - **`tb_autopilot`** now plays all 9 combinations (3 difficulties × 1–3 columns) for 2,500 frames each. The autopilot never crashes, which shows every mode is playable, and the scores match independently counted passes.
 - **Timing:** setup slack fell to +11.9 ns because of the pursuit arithmetic, which is still ample at 31.7 ns per clock.
+
+## M2–M8 integrated build (programmed 2026-09-16)
+
+**Clean full compile:** 89 s wall-clock (Analysis & Synthesis 7 s, Fitter 70 s, Assembler 3 s, TimeQuest 4 s), 0 errors, 0 critical warnings.
+
+**Resources:** 1,125 / 41,910 ALMs (3%), 526 registers, 61,440 / 5,662,720 memory bits (1%), 9 / 553 RAM blocks, 0 / 112 DSP, 1 PLL.
+
+**Timing:** met in all corners. Worst setup slack +11.87 ns, hold +0.170 ns, recovery +27.1 ns, removal +0.46 ns, design-wide TNS 0.
+
+**Warnings: 60, all expected.**
+
+| Warning | Count | Cause |
+|---|---|---|
+| 15706 (+15705, 171167) | 36 | Pin assignments embedded in the supplied `KBDINTF.qxp` for demo nodes that don't exist here |
+| 13049 (+13046) | 17 | `lpm_rom` internal tri-state outputs converted to wires (the supplied demo shows 48) |
+| 13410 (+13024) | 2 | `AUD_XCK` and `AUD_DACDAT` intentionally held low |
+| 15714 | 1 | Default drive strength (the supplied demo shows the same) |
+
+**Programming:**
+- File: `fpga/output_files/controlled_maze.sof`, built 2026-09-16 20:59:36, checksum `0x00EDE942`.
+- Command: `quartus_pgm -c "DE-SoC [USB-1]" -m jtag -o "p;output_files/controlled_maze.sof@2"` (the FPGA is JTAG device 2; device 1 is the HPS).
+
+**Simulation:** 13 self-checking testbenches pass: `tb_autopilot`, `tb_bcd`, `tb_bird`, `tb_collision`, `tb_game_fsm`, `tb_keys`, `tb_lfsr`, `tb_maze`, `tb_obstacles`, `tb_score`, `tb_text`, `tb_vga_timing`, `tb_water`. `tb_render +scenario=tour +difficulty=2 +columns=2` renders the screenshots in `docs/screenshots/m8/`.
+
+**Board check:** pending the team's physical test.

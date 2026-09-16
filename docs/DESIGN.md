@@ -49,7 +49,7 @@ States: `ST_MENU_DIFF`, `ST_MENU_OBST`, `ST_READY`, `ST_PLAY`, `ST_HIT`, `ST_GAM
 | Arrow Up | `9'h175` | `singleKeyDecoder #(.KEY_VALUE(9'h175))` | `keyRisingEdgePulse` in menus; `keyIsPressed` (held) in play |
 | Arrow Down | `9'h172` | `singleKeyDecoder #(.KEY_VALUE(9'h172))` | same |
 | Enter (main) | `9'h05A` | `singleKeyDecoder #(.KEY_VALUE(9'h05A))` | confirm pulse |
-| Enter (keypad) | `9'h15A` | existing `keyPad_decoder.enter` | OR'd into confirm |
+| Enter (keypad) | `9'h15A` | a fourth `singleKeyDecoder` *(as built; simpler than adding `keyPad_decoder` for one key)* | OR'd into confirm |
 
 These instances tap the supplied `KBDINTF` outputs `keyCode` / `make` / `brake`. PS/2 typematic repeats resend the make code, but `keyIsPressed` simply stays high, so a held arrow gives a clean level and never re-triggers menu movement. In play, if both arrows are held the maze does not move.
 
@@ -77,7 +77,7 @@ x_overlap[i] = bird_hb_right > col_x[i]  &&  bird_hb_left < col_x[i] + CORAL_W
 outside[i]   = bird_hb_top < gap_top[i]  ||  bird_hb_bottom > gap_bottom[i]
 collision    = |(enable & x_overlap & outside)
 ```
-- The bird hitbox is a parameterized inset of the 32×32 sprite (about 22×18, tuned once the art exists) so edge contacts favor the player.
+- The bird hitbox is a parameterized inset of the 32×32 sprite: x 9..25 and y 10..24 (17×15, the body only), so fins, tail and beak are forgiving. The coral collision core is 4 px narrower than the art on each side, and the 8 rows of branch tips next to the opening never collide.
 - This costs about 18 comparators per frame and is independent of the artwork.
 - **Key payoff:** a headless training simulator has no raster scan, so per-pixel collision could not be reused there. Geometric collision can be reused as-is.
 - The supplied `game_controller.sv` once-per-frame flag/`SingleHitPulse` pattern still turns the level into one pulse.
@@ -129,9 +129,12 @@ collision    = |(enable & x_overlap & outside)
 - A Tcl converter produces `.mif` files.
 - An HTML preview of each sprite is shown to the user for approval before conversion.
 
-**Text.** An 8×16 1-bit glyph ROM (~40 glyphs, ≈5 Kb) plus a string table, drawn at ×2/×3 with the offset-shift trick already present in `NumbersBitMap.sv`. The selection highlight is a `square_object` rectangle.
+**Text** *(as built in M5 and M6)*:
+- An original 8×8 1-bit font (45 glyphs, ASCII 0x20..0x5F, 4,096 bits), drawn at ×2, ×4 or ×8, so every division is a shift.
+- Every text line on every screen is one entry in `text_pkg`.
+- The selection highlight is a bar drawn by `ui_panels`, which also draws the translucent checkerboard backdrops and the crash flash.
 
-**Memory.** Bird 24.6 Kb + coral 32.8 Kb + background tiles ~66 Kb + font ~5 Kb ≈ **130 Kb (~2.3% of the device's 5,662,720 memory bits)**.
+**Memory.** Planned: bird 24.6 Kb + coral 32.8 Kb + background tiles ~66 Kb + font ~5 Kb ≈ 130 Kb. As of M8: bird 24,576 + coral 32,768 + font 4,096 = **61,440 bits (1%)**. The background is still fully procedural.
 
 ## H. Audio
 
@@ -159,7 +162,20 @@ collision    = |(enable & x_overlap & outside)
 
 - `game_state_pkg` exposes `bird_y`, `bird_vy`, `traj_state`, `next_obst_dx`, `next_obst_gap_y`, `dy_error`, `maze_y_offset`, `world_step`, `difficulty`, `obstacle_count`, `score_bcd`, `collision`, `game_state`, and `frame_tick`.
 - `control_mux` already has the `ai_up`, `ai_down`, `ai_valid`, and `ai_mode` ports.
-- `ml_feature_extract` is built now for the HUD and SignalTap.
+- `ml_feature_extract` has been postponed to M13. `game_logic` already outputs every signal it needs (bird Y/Vy/state, maze offset, column X, opening edges, collision, score).
+
+## Implementation notes (M2–M8)
+
+- **Module structure:** `controlled_maze_top` (PLL, reset, `KBDINTF` wrapper, codec tie-offs) → `game_system` (VGA timing, key decoding, drawing layers) → `game_logic`. `game_logic` holds every game rule and has no pixel inputs, so testbenches (and later an on-chip trainer) can step it thousands of times faster than real time.
+- **Frame order:** each frame's update is split into `tickMove` → `tickCheck` → `tickState`, one clock apart, during vertical blanking.
+- **Drawing layers** all have a 3-clock latency and are merged, front to back, as text → panels → bird → coral → water and sand.
+- **Asset sources:** `assets/sprites/*.txt` and `assets/fonts/font8x8.txt` are the sources, converted by `tools/sprite_tool.tcl` and `tools/font_tool.tcl` (`quartus_sh -t`). `tools/ppm2png.pl` turns simulated VGA frames into PNGs.
+- **Randomness:** the supplied `random.sv` latches a counter on each Enter press. That value seeds two 16-bit leap-forward LFSRs (16 steps per frame), one for the coral and one for the bird.
+- **Tuned bird motion:**
+  - MEDIUM: a decision every 24 frames, 2.5 px/frame, 16/64 px per frame² acceleration.
+  - HARD: pursuit gain 1/8, 6..37-frame dwell, 3.75 px/frame, 32/64 px per frame² acceleration, ±4/64 px jitter.
+- **Timing setting:** `OPTIMIZE_HOLD_TIMING` is `ALL PATHS`, because the supplied `OFF` setting left a −51 ps hold violation on the pipeline registers.
+- **Not yet built** (later milestones): `world_speed` (SW[2:0], M9), audio and `sound_arbiter` (M10), parallax, bubbles and seaweed (M11), `menu_controller` (folded into `game_fsm`), `glyph_rom`/`digit_field_draw` (folded into `text_draw`), `game_controller`-style per-pixel debug collision (optional).
 
 ## L. On-fabric training — preliminary (unchanged, now strengthened)
 
