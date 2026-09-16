@@ -90,15 +90,36 @@ module game_logic
   assign birdRun  = worldRun || inMenu;                               // the bird bobs behind the menus
 
   // ---------------------------------------------------------------- randomness
-  logic [15:0] rnd;
+  // The supplied random.sv latches a free-running counter when Enter is pressed;
+  // human timing makes that value unpredictable, so it seeds both LFSRs at the
+  // start of every round. The coral and the bird use separate streams.
+  logic [15:0] entropy;
+  logic [15:0] worldRnd;
+  logic [15:0] birdRnd;
 
-  lfsr_rng rng (
+  random #(.SIZE_BITS(16), .MIN_VAL(16'h0000), .MAX_VAL(16'hFFFF)) entropySource (
+      .clk   (clk),
+      .resetN(resetN),
+      .rise  (enterPulse),
+      .dout  (entropy)
+  );
+
+  lfsr_rng worldRng (
       .clk     (clk),
       .resetN  (resetN),
       .step    (tickMove),
-      .seedLoad(1'b0),
-      .seed    (16'h0000),
-      .rnd     (rnd)
+      .seedLoad(roundStart),
+      .seed    (entropy),
+      .rnd     (worldRnd)
+  );
+
+  lfsr_rng birdRng (
+      .clk     (clk),
+      .resetN  (resetN),
+      .step    (tickMove),
+      .seedLoad(roundStart),
+      .seed    ({entropy[7:0], entropy[15:8]} ^ 16'h5A5A),
+      .rnd     (birdRnd)
   );
 
   // ---------------------------------------------------------------- bird
@@ -109,7 +130,7 @@ module game_logic
       .run      (birdRun),
       .restart  (roundStart || menuStart),
       .mode     (inMenu ? DIFF_EASY : difficulty),
-      .rnd      (rnd),
+      .rnd      (birdRnd),
       .birdY    (birdY),
       .birdVy   (birdVy),
       .trajState(birdTrajState)
@@ -155,7 +176,7 @@ module game_logic
       .columnCount(columnCount),
       .worldStep  (12'(WORLD_STEP_DEFAULT)),
       .mazeOffset (mazeOffset),
-      .rnd        (rnd),
+      .rnd        (worldRnd),
       .active     (colActive),
       .colX       (colX),
       .gapTop     (gapTop),

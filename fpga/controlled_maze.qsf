@@ -36,6 +36,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/AUDIO/SinTable.sv
 set_global_assignment -name QXP_FILE KBDINTF.qxp
 set_global_assignment -name VERILOG_FILE RTL/KEYBOARDX/kbd_wrapper.v
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/KEYBOARDX/singleKeyDecoder.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/KEYBOARDX/random.sv
 
 # ---- project sources (packages first)
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/PKG/palette_pkg.sv

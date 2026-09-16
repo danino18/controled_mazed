@@ -208,7 +208,7 @@ module tb_autopilot;
     resetN = 1'b1;
     frames(2);
     go_to_menu();
-    if (!$value$plusargs("modes=%d", modes)) modes = 1;
+    if (!$value$plusargs("modes=%d", modes)) modes = 3;
 
     for (int diff = 0; diff < modes; diff++) begin
       for (int cols = 1; cols <= 3; cols++) begin

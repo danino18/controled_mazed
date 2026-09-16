@@ -18,13 +18,16 @@ mkdir -p RTL
 cp -r "$ROOT/fpga/RTL/MIF" RTL/ 2>/dev/null
 "$MODELSIM/vlib" work > /dev/null
 
-# RTL sources in project order (packages first), excluding precompiled/IP blocks.
+# RTL sources in project order (packages first), excluding the board top level,
+# the wrapper of the precompiled keyboard block, and supplied files that have a
+# simulator-friendly copy in sim/models (see each file there).
 SOURCES=$(grep -E "^set_global_assignment -name (SYSTEMVERILOG|VERILOG)_FILE RTL/" "$ROOT/fpga/controlled_maze.qsf" \
           | awk '{print $NF}' | grep -v "TOP/controlled_maze_top.sv" | grep -v "kbd_wrapper.v" \
+          | grep -v "KEYBOARDX/random.sv" \
           | sed "s|^|../../fpga/|")
 
 # shellcheck disable=SC2086
-"$MODELSIM/vlog" -sv -quiet -work work $SOURCES ../../sim/tb_*.sv || exit 1
+"$MODELSIM/vlog" -sv -quiet -work work ../../sim/models/*.sv $SOURCES ../../sim/tb_*.sv || exit 1
 
 PLUSARGS=""
 TESTS=""

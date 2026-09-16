@@ -30,6 +30,19 @@ package game_params_pkg;
   // EASY: one sine-table step per frame (256 frames per bob, ~3.5 s), amplitude 127 px.
   localparam int EASY_PHASE_STEP = 16;            // in 1/16 table entries per frame
 
+  // MEDIUM: a random up/down decision every MEDIUM_INTERVAL frames (~0.33 s).
+  // Speeds and accelerations are in 1/64 px per frame.
+  localparam int MEDIUM_INTERVAL    = 24;
+  localparam int MEDIUM_SPEED       = 160;        // 2.5 px per frame
+  localparam int MEDIUM_ACCEL       = 16;         // reversing takes 20 frames
+  localparam int MEDIUM_EDGE_MARGIN = 48;         // px: always turn away from the edges
+
+  // HARD: chase a random height; the next target comes after 6..37 frames.
+  localparam int HARD_MAX_SPEED     = 240;        // 3.75 px per frame (<= MAZE_STEP_MAX)
+  localparam int HARD_MAX_ACCEL     = 32;
+  localparam int HARD_JITTER        = 4;
+  localparam int HARD_DWELL_MIN     = 6;
+
   // ---------------------------------------------------------------- coral columns
   localparam int NUM_COLUMNS     = 3;
   localparam int CORAL_W         = 64;            // width of the artwork

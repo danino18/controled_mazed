@@ -12,6 +12,7 @@ Measurements are from Quartus Prime Lite 17.0.0 Build 595, full compile (`quartu
 | M5 score + best score on VGA HUD and HEX | 74 s | 488 (1%) | 344 | 61,440 | 9 | 0 | +22.63 ns (hold +0.17 ns) | in M8 build |
 | M6 game FSM, menus, GET READY, GAME OVER, restart, main menu, panels | 102 s* | 928 (2%) | 439 | 61,440 | 9 | 0 | +19.10 ns (hold +0.14 ns) | in M8 build |
 | M7 1/2/3 columns verified; game logic separated into game_logic | 84 s | 931 (2%) | 435 | 61,440 | 9 | 0 | +18.23 ns (hold +0.16 ns) | in M8 build |
+| M8 MEDIUM + HARD bird motion, seeded leap-forward LFSRs | 95 s | 1,125 (3%) | 526 | 61,440 | 9 | 0 | +11.87 ns (hold +0.17 ns) | in M8 build |
 
 ## M0 — Baseline of the supplied demo
 
@@ -177,3 +178,24 @@ Design rule: any build without the audio block must keep `AUD_XCK` and `AUD_DACD
   - EASY results (2,500 frames each): 1 column scored 7, 2 columns 14, 3 columns 20. The autopilot never crashed.
 - **`tb_collision`:** now also covers a crash caused by each column index, with 1–3 active columns, and inactive or distant columns never colliding.
 - **`tb_obstacles`** already covers placement, spacing, scoring and clamping for 1, 2 and 3 columns.
+
+## M8 — Three real difficulty levels
+
+Only the trajectory generator changes between difficulties (`bird_trajectory`); drawing and collision are shared.
+
+- **EASY:** a sine bob from the supplied `sintable`. It is exactly periodic (256 frames) and ranges 96..351 px at ≤ 4 px/frame.
+- **MEDIUM:** a random up/down decision every 24 frames. Speed eases (16/64 px per frame²) towards ±2.5 px/frame, and the bird always turns away within 48 px of the top or bottom.
+- **HARD:** chases a random target height, closing 1/8 of the distance per frame. A new target arrives after a random 6..37 frames, so there is no fixed rhythm. Speed is capped at 3.75 px/frame and acceleration at 0.5 px/frame², plus ±1/16 px of jitter. Both limits stay within the player's 4 px/frame maze speed.
+- **Randomness:**
+  - The supplied `random.sv` (unchanged) latches a free-running counter on every Enter press, and that value seeds two LFSRs (coral, bird) at the start of each round.
+  - `lfsr_rng` now leaps 16 steps per frame, so each frame gets 16 fresh bits. The full 65,535 period is kept and checked by `tb_lfsr`.
+  - Simulation uses `sim/models/random.sv`, a copy of the supplied file with only the parameter declarations moved, because ModelSim rejects the original's use of a parameter before its declaration.
+- **`tb_bird` (report module #2)** runs 3,000 frames per mode, using the real LFSR, and checks bounds, per-frame movement, speed and acceleration limits, and decision timing.
+  - Results: MEDIUM decides exactly every 24 frames; HARD decides at 32 different intervals within 6..37 frames and covers 78..373 px.
+  - It also checks that the three paths differ by 78–95 px on average, that HARD reverses 4× more often than EASY, and that the HARD path depends on the seed.
+- **Bugs found and fixed:**
+  - HARD waited dwell + 1 frames between decisions.
+  - The pursuit gain of 1/16 kept the bird in the middle of the screen; it is now 1/8.
+  - The one-bit-per-frame LFSR produced correlated targets; it now leaps 16 steps per frame.
+- **`tb_autopilot`** now plays all 9 combinations (3 difficulties × 1–3 columns) for 2,500 frames each. The autopilot never crashes, which shows every mode is playable, and the scores match independently counted passes.
+- **Timing:** setup slack fell to +11.9 ns because of the pursuit arithmetic, which is still ample at 31.7 ns per clock.
