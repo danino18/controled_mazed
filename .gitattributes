@@ -1,0 +1,9 @@
+* text=auto
+*.sh  text eol=lf
+*.tcl text eol=lf
+*.qar binary
+*.qxp binary
+*.QXP binary
+*.pdf binary
+*.pptx binary
+*.docx binary
