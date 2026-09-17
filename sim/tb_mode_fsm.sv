@@ -16,26 +16,50 @@ module tb_mode_fsm;
   logic resetN = 1'b0;
   always #5 clk = ~clk;
 
-  logic       up = 0, down = 0, enter = 0, back = 0, debugSw = 0, watchValid = 0;
-  logic       menuStart = 0, trainStart = 0;
+  logic       up = 0, down = 0, enter = 0, back = 0, debugSw = 0, watchValid = 0, watchTrained = 0;
+  logic       menuStart = 0, trainStart = 0, remoteStart = 0, remoteStop = 0, remoteExit = 0;
   logic [2:0] screen = ST_MENU_DIFF;
   logic [2:0] mode;
   logic [3:0] page;
   logic [1:0] cursor;
-  logic       aiMode, trainMode, gameKeys, gameVisible, abortGame, trainAbort, trainScreen;
+  logic       aiMode, trainMode, gameKeys, gameVisible, abortGame;
+  logic       trainGo, trainStop, trainAbort, trainScreen, watchAuto, watchLoad;
+
+  // a model of the trainer: starts on trainStart (from the setup menus) or
+  // trainGo; a stop completes it when it has a champion, otherwise it goes idle
+  logic trainActive = 0, trainComplete = 0;
+  bit   modelHasChampion = 1;
+
+  always @(posedge clk) begin
+    if ((trainStart && mode == 3'd3) || trainGo) trainActive <= 1'b1;
+    if (trainStop) begin
+      if (modelHasChampion) trainComplete <= 1'b1;
+      else                  trainActive   <= 1'b0;
+    end
+    if (trainAbort) begin
+      trainActive   <= 1'b0;
+      trainComplete <= 1'b0;
+    end
+  end
 
   mode_fsm dut (
       .clk(clk), .resetN(resetN), .upPulse(up), .downPulse(down), .enterPulse(enter),
-      .backPulse(back), .debugSw(debugSw), .watchValid(watchValid), .screen(screen),
-      .menuStart(menuStart), .trainStart(trainStart), .mode(mode), .cursor(cursor),
+      .backPulse(back), .debugSw(debugSw), .watchValid(watchValid), .watchTrained(watchTrained),
+      .screen(screen), .menuStart(menuStart), .trainStart(trainStart), .trainActive(trainActive),
+      .trainComplete(trainComplete), .remoteStart(remoteStart), .remoteStop(remoteStop),
+      .remoteExit(remoteExit), .mode(mode), .cursor(cursor),
       .aiMode(aiMode), .trainMode(trainMode), .gameKeys(gameKeys), .gameVisible(gameVisible),
-      .abortGame(abortGame), .trainAbort(trainAbort), .trainScreen(trainScreen), .page(page));
+      .abortGame(abortGame), .trainGo(trainGo), .trainStop(trainStop), .trainAbort(trainAbort),
+      .trainScreen(trainScreen), .watchAuto(watchAuto), .watchLoad(watchLoad), .page(page));
 
   int errors = 0;
   int aborts = 0;
-  int trainAborts = 0;
+  int trainAborts = 0, trainStops = 0, trainGos = 0, watchLoads = 0;
   always @(posedge clk) if (abortGame) aborts++;
   always @(posedge clk) if (trainAbort) trainAborts++;
+  always @(posedge clk) if (trainStop) trainStops++;
+  always @(posedge clk) if (trainGo) trainGos++;
+  always @(posedge clk) if (watchLoad) watchLoads++;
 
   task automatic fail(input string msg);
     errors++;
@@ -109,19 +133,58 @@ module tb_mode_fsm;
     expect_mode(MD_TRAIN, PAGE_TRAIN, "world chosen");
     expect_routing(0, 0, 0, 0, "training");
     if (!trainScreen) fail("training screen flag not set");
+    if (!trainActive) fail("trainer not started");
     pulse(enter);
     pulse(up);
     pulse(down);
     expect_mode(MD_TRAIN, PAGE_TRAIN, "Enter and 8/2 during training");
-    if (trainAborts != 0) fail("training stopped without KEY1");
+    if (trainAborts != 0 || trainStops != 0) fail("training stopped without KEY1");
+    // KEY1: stop and keep the champion; the screen stays until training is complete
     pulse(back);
-    expect_mode(MD_MODE_MENU, PAGE_MODE, "KEY1 on the training screen");
-    if (trainAborts != 1) fail("KEY1 did not stop the training run");
+    expect_mode(MD_TRAIN, PAGE_TRAIN, "KEY1 while training (stop, keep the champion)");
+    if (trainStops != 1 || trainAborts != 0) fail("KEY1 did not send exactly one stop");
+    if (!trainComplete) fail("model trainer did not complete");
+    pulse(up);
+    expect_mode(MD_TRAIN, PAGE_TRAIN, "complete: 8 does not leave");
+    pulse(enter);                                    // Enter leaves a completed training
+    expect_mode(MD_MODE_MENU, PAGE_MODE, "Enter on TRAINING COMPLETE");
+    if (trainAborts != 1) fail("leaving did not return the trainer to idle");
     if (trainScreen) fail("training screen flag still set");
-    if (cursor != 1) fail("mode cursor not on TRAIN AI after training");
+    if (cursor != 2) fail("mode cursor not on WATCH AI after training");
+    // again, leaving with KEY1
+    repeat (1) pulse(up);
+    pulse(enter);
+    pulse(trainStart);
+    pulse(back);
+    pulse(back);
+    expect_mode(MD_MODE_MENU, PAGE_MODE, "KEY1 twice: stop, then leave");
+    if (trainAborts != 2 || trainStops != 2) fail("KEY1 twice: wrong requests");
+    // a stop before any champion: the trainer goes idle and the screen follows
+    modelHasChampion = 0;
+    pulse(up);
+    pulse(enter);
+    pulse(trainStart);
+    pulse(back);
+    repeat (3) @(negedge clk);
+    expect_mode(MD_MODE_MENU, PAGE_MODE, "stop without a champion");
+    if (cursor != 1) fail("mode cursor not on TRAIN AI after an empty training");
+    modelHasChampion = 1;
+    // JTAG: start from the mode menu, stop, exit
+    trainGos = 0;
+    pulse(remoteStart);
+    expect_mode(MD_TRAIN, PAGE_TRAIN, "JTAG start");
+    if (trainGos != 1 || !trainActive) fail("JTAG start did not start the trainer");
+    pulse(remoteExit);
+    expect_mode(MD_TRAIN, PAGE_TRAIN, "JTAG exit while training is ignored");
+    pulse(remoteStop);
+    if (!trainComplete) fail("JTAG stop did not stop");
+    pulse(remoteExit);
+    expect_mode(MD_MODE_MENU, PAGE_MODE, "JTAG exit after completion");
+    pulse(remoteStop);
+    expect_mode(MD_MODE_MENU, PAGE_MODE, "JTAG stop in the mode menu is ignored");
 
     // ---- HUMAN PLAY
-    pulse(up);
+    repeat (2) pulse(up);
     if (cursor != 0) fail("cursor not on HUMAN PLAY");
     pulse(enter);
     expect_mode(MD_GAME, PAGE_NONE, "HUMAN PLAY");
@@ -163,10 +226,29 @@ module tb_mode_fsm;
     expect_mode(MD_MODE_MENU, PAGE_MODE, "KEY1 while watching");
     if (aiMode) fail("AI still steering after KEY1");
 
+    // ---- WATCH AI with a trained network: starts at once with its training world
+    watchTrained = 1'b1;
+    screen = ST_MENU_DIFF;
+    watchLoads = 0;
+    pulse(enter);
+    expect_mode(MD_GAME, PAGE_NONE, "WATCH AI (trained) before the round starts");
+    if (!watchAuto || watchLoads != 1) fail("trained WATCH AI did not request the automatic start");
+    expect_routing(0, 0, 1, 0, "trained AI starting (keys and game menus hidden)");
+    screen = ST_READY;
+    repeat (2) @(negedge clk);
+    if (watchAuto) fail("automatic start still requested in GET READY");
+    expect_routing(1, 1, 1, 0, "trained AI game");
+    if (page != PAGE_WATCH) fail("no AI overlay for the trained AI");
+    screen = ST_GAME_OVER;
+    pulse(menuStart);
+    expect_mode(MD_MODE_MENU, PAGE_MODE, "MAIN MENU after the trained AI");
+    watchTrained = 1'b0;
+
     // ---- menuStart / trainStart outside their modes are ignored
     pulse(menuStart);
     pulse(trainStart);
     expect_mode(MD_MODE_MENU, PAGE_MODE, "stray pulses");
+    if (trainActive) fail("a stray trainStart started the trainer");
 
     if (errors == 0) $display("PASS: tb_mode_fsm");
     else             $display("FAIL: tb_mode_fsm (%0d errors)", errors);

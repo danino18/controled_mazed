@@ -112,14 +112,20 @@ module game_system
   logic [2:0] mode;
   logic [1:0] modeCursor;
   logic       aiMode, trainMode, gameKeys, gameVisible, abortGame;
-  logic       trainAbort, trainScreen;
+  logic       trainGo, trainStop, trainAbort, trainScreen, watchAuto, watchLoad;
   logic [3:0] page;
   logic [2:0] screen;
   logic       menuStartGame;   // not exported by game_logic; see below
   logic       trainStart;
   logic       watchValid;
 
-  assign watchValid = DEMO_NET;
+  // committed AI (train_top) and JTAG requests (train_probe), declared here for mode_fsm
+  logic       trainActive, trainComplete, aiCommitted;
+  logic [1:0] aiDifficulty, aiColumns;
+  logic [2:0] aiSpeed;
+  logic       remoteStart, remoteStop, remoteExit;
+
+  assign watchValid = aiCommitted || DEMO_NET;
 
   // game_fsm's first menu comes back after MAIN MENU on GAME OVER
   logic [2:0] screenD;
@@ -137,20 +143,30 @@ module game_system
       .enterPulse (enterPulse),
       .backPulse  (backPulse),
       .debugSw    (debugOn),
-      .watchValid (watchValid),
-      .screen     (screen),
-      .menuStart  (menuStartGame),
-      .trainStart (trainStart),
-      .mode       (mode),
-      .cursor     (modeCursor),
-      .aiMode     (aiMode),
-      .trainMode  (trainMode),
-      .gameKeys   (gameKeys),
-      .gameVisible(gameVisible),
-      .abortGame  (abortGame),
-      .trainAbort (trainAbort),
-      .trainScreen(trainScreen),
-      .page       (page)
+      .watchValid   (watchValid),
+      .watchTrained (aiCommitted),
+      .screen       (screen),
+      .menuStart    (menuStartGame),
+      .trainStart   (trainStart),
+      .trainActive  (trainActive),
+      .trainComplete(trainComplete),
+      .remoteStart  (remoteStart),
+      .remoteStop   (remoteStop),
+      .remoteExit   (remoteExit),
+      .mode         (mode),
+      .cursor       (modeCursor),
+      .aiMode       (aiMode),
+      .trainMode    (trainMode),
+      .gameKeys     (gameKeys),
+      .gameVisible  (gameVisible),
+      .abortGame    (abortGame),
+      .trainGo      (trainGo),
+      .trainStop    (trainStop),
+      .trainAbort   (trainAbort),
+      .trainScreen  (trainScreen),
+      .watchAuto    (watchAuto),
+      .watchLoad    (watchLoad),
+      .page         (page)
   );
 
   // ---------------------------------------------------------------- game rules
@@ -197,12 +213,12 @@ module game_system
       .aiDown        (aiDown),
       .aiValid       (aiValid),
       .trainMode     (trainMode),
-      .autoStart     (1'b0),            // WATCH AI of a trained network: M12
-      .autoDifficulty(2'd0),
-      .autoColumns   (2'd1),
+      .autoStart     (watchAuto),       // WATCH AI of a trained network: its training world
+      .autoDifficulty(aiDifficulty),
+      .autoColumns   (aiColumns),
       .abort         (abortGame),
-      .speedLoad     (1'b0),
-      .speedLoadLevel(3'd0),
+      .speedLoad     (watchLoad),
+      .speedLoadLevel(aiSpeed),
       .trainStart    (trainStart),
       .screen        (screen),
       .difficulty    (difficulty),
@@ -234,7 +250,12 @@ module game_system
   logic signed [ACC_W-1:0]   aiY;
   logic signed [7:0]         aiH0;
 
-  ai_player ai (
+  // the WATCH memory is written by the trainer when a training run completes
+  logic                   watchWe;
+  logic [GENE_ADDR_W-1:0] watchWa;
+  logic [7:0]             watchWd;
+
+  ai_player #(.NET_FILE(DEMO_NET ? "RTL/MIF/nn_demo.mif" : "UNUSED")) ai (
       .clk       (clk),
       .resetN    (resetN),
       .enable    (aiMode),
@@ -246,9 +267,9 @@ module game_system
       .gapTop    (gapTop),
       .mazeVy    (mazeVy),
       .speedLevel(speedLevel),
-      .netWe     (1'b0),                // committed training results: M12
-      .netWa     ('0),
-      .netWd     ('0),
+      .netWe     (watchWe),
+      .netWa     (watchWa),
+      .netWd     (watchWd),
       .aiUp      (aiUp),
       .aiDown    (aiDown),
       .aiValid   (aiValid),
@@ -272,7 +293,7 @@ module game_system
   // (the same stepping rules as the world speed, level 2 = x4 after reset);
   // game_logic does not see those keys then, so the world speed to train on
   // cannot change.
-  logic [2:0] simLevel;
+  logic [2:0] simKeyLevel, simLevel;
 
   world_speed_control simSpeed (
       .clk          (clk),
@@ -282,24 +303,56 @@ module game_system
       .speedDownHeld(trainScreen && speedDownHeld),
       .load         (1'b0),
       .loadLevel    (3'd0),
-      .speedLevel   (simLevel),
+      .speedLevel   (simKeyLevel),
       .worldStep    ()
   );
 
-  // RUN ID: the supplied random.sv latched by the Enter press that starts training
+  // RUN ID: the supplied random.sv latched by the Enter press (or the JTAG
+  // request) that starts training
   logic [15:0] runEntropy;
 
   random #(.SIZE_BITS(16), .MIN_VAL(16'h0000), .MAX_VAL(16'hFFFF)) runIdSource (
       .clk   (clk),
       .resetN(resetN),
-      .rise  (enterPulse),
+      .rise  (enterPulse || remoteStart),
       .dout  (runEntropy)
   );
 
-  logic                                 trainActive, trainGenPulse;
+  // JTAG measurement and control (In-System Sources and Probes "TRNP")
+  logic [191:0] probeData;
+  logic [1:0]   remoteDifficulty, remoteColumns;
+  logic [2:0]   remoteSpeed, remoteSimLevel;
+  logic         remoteSim;
+
+  train_probe probe (
+      .clk        (clk),
+      .resetN     (resetN),
+      .probe      (probeData),
+      .startReq   (remoteStart),
+      .stopReq    (remoteStop),
+      .exitReq    (remoteExit),
+      .difficulty (remoteDifficulty),
+      .columns    (remoteColumns),
+      .speed      (remoteSpeed),
+      .simOverride(remoteSim),
+      .simLevel   (remoteSimLevel),
+      .marker     ()
+  );
+
+  assign simLevel = remoteSim ? remoteSimLevel : simKeyLevel;
+
+  logic                                 trainGenPulse;
   logic [LANES-1:0]                     trainAlive;
   logic [1:0]                           trainDifficulty, trainColumns;
   logic [2:0]                           trainSpeed;
+  logic [15:0]                          aiRunId;
+  logic [7:0]                           aiGen;
+  logic [3:0]                           aiValW, aiTestW;
+  logic [9:0]                           aiValGates, aiTestGates;
+  logic                                 aiTestValid;
+  logic                                 histWe;
+  logic [6:0]                           histWa;
+  logic [20:0]                          histWd;
   logic [LANES-1:0][1:0]                sLaneState, sLaneAct;
   logic [LANES-1:0][CAND_W-1:0]         sLaneCand;
   logic [LANES-1:0][9:0]                sLaneGates;
@@ -310,36 +363,55 @@ module game_system
   logic [LANES-1:0][NUM_COLUMNS*11-1:0] sViewColX;
   logic [LANES-1:0][NUM_COLUMNS*10-1:0] sViewGapTop;
   logic [2:0]                           sStage, sRunState;
+  logic [3:0]                           sWorld, sBatch;
   logic [15:0]                          sRunId, sSeed;
-  logic [7:0]                           sGen;
-  logic [3:0]                           sBatch, sRunIdx;
+  logic [7:0]                           sGen, sChampGen;
   logic [11:0]                          sPlaySteps;
-  logic [6:0]                           sReadySteps;
-  logic [FIT_W-1:0]                     sGenBest;
-  logic [CAND_W-1:0]                    sGenBestCand;
-  logic                                 sGenBestValid;
-  logic [6:0]                           sGenDone, sLastMean;
-  logic                                 sLastMeanValid;
-  logic [7:0][FIT_W-1:0]                sTopScores;
-  logic [7:0][CAND_W-1:0]               sTopIds;
-  logic [7:0]                           sTopValid;
+  logic [6:0]                           sReadySteps, sGenDone, sLastMean, sValTopSurv, sChampSurv, sTestSurv;
+  logic [FIT_W-1:0]                     sGenBest, sPrevBest, sValTop, sChampScore, sTestScore;
+  logic [CAND_W-1:0]                    sGenBestCand, sValTopCand, sChampCand;
+  logic                                 sGenBestValid, sPrevBestValid, sLastMeanValid, sValTopValid;
+  logic                                 sChampExists, sTestValid;
+  logic [3:0]                           sValTopW, sChampW, sTestW;
+  logic [5:0]                           sStall;
+  logic [1:0]                           sMutLevel, sDoneReason;
   logic [31:0]                          sEvaluated;
   logic [19:0]                          sStepsPerSec;
 
   train_top trainer (
       .clk           (clk),
       .resetN        (resetN),
-      .start         (trainStart),
+      .start         (trainStart || trainGo),
+      .stop          (trainStop),
       .abort         (trainAbort),
+      .hold          (1'b0),
       .runIdIn       (runEntropy),
-      .difficultyIn  (difficulty),
-      .columnsIn     (columnCount),
-      .speedIn       (speedLevel),
+      .difficultyIn  (trainGo ? remoteDifficulty : difficulty),
+      .columnsIn     (trainGo ? remoteColumns : columnCount),
+      .speedIn       (trainGo ? remoteSpeed : speedLevel),
       .simLevel      (simLevel),
       .frameTick     (startOfFrame),
       .active        (trainActive),
+      .complete      (trainComplete),
       .liveAlive     (trainAlive),
       .genPulse      (trainGenPulse),
+      .watchWe       (watchWe),
+      .watchWa       (watchWa),
+      .watchWd       (watchWd),
+      .aiValid       (aiCommitted),
+      .aiDifficulty  (aiDifficulty),
+      .aiColumns     (aiColumns),
+      .aiSpeed       (aiSpeed),
+      .aiRunId       (aiRunId),
+      .aiGen         (aiGen),
+      .aiValW        (aiValW),
+      .aiValGates    (aiValGates),
+      .aiTestW       (aiTestW),
+      .aiTestGates   (aiTestGates),
+      .aiTestValid   (aiTestValid),
+      .histWe        (histWe),
+      .histWa        (histWa),
+      .histWd        (histWd),
       .snapTaken     (),
       .cfgDifficulty (trainDifficulty),
       .cfgColumns    (trainColumns),
@@ -356,25 +428,69 @@ module game_system
       .sViewGapTop   (sViewGapTop),
       .sStage        (sStage),
       .sRunState     (sRunState),
+      .sWorld        (sWorld),
       .sRunId        (sRunId),
       .sGen          (sGen),
       .sBatch        (sBatch),
-      .sRunIdx       (sRunIdx),
       .sSeed         (sSeed),
       .sPlaySteps    (sPlaySteps),
       .sReadySteps   (sReadySteps),
       .sGenBest      (sGenBest),
       .sGenBestCand  (sGenBestCand),
       .sGenBestValid (sGenBestValid),
+      .sPrevBest     (sPrevBest),
+      .sPrevBestValid(sPrevBestValid),
       .sGenDone      (sGenDone),
       .sLastMean     (sLastMean),
       .sLastMeanValid(sLastMeanValid),
-      .sTopScores    (sTopScores),
-      .sTopIds       (sTopIds),
-      .sTopValid     (sTopValid),
+      .sValTop       (sValTop),
+      .sValTopW      (sValTopW),
+      .sValTopSurv   (sValTopSurv),
+      .sValTopCand   (sValTopCand),
+      .sValTopValid  (sValTopValid),
+      .sChampExists  (sChampExists),
+      .sChampScore   (sChampScore),
+      .sChampW       (sChampW),
+      .sChampSurv    (sChampSurv),
+      .sChampGen     (sChampGen),
+      .sChampCand    (sChampCand),
+      .sStall        (sStall),
+      .sMutLevel     (sMutLevel),
+      .sTestScore    (sTestScore),
+      .sTestW        (sTestW),
+      .sTestSurv     (sTestSurv),
+      .sTestValid    (sTestValid),
+      .sDoneReason   (sDoneReason),
       .sEvaluated    (sEvaluated),
       .sStepsPerSec  (sStepsPerSec)
   );
+
+  // what the JTAG probe reports (layout: tools/train_probe.tcl)
+  assign probeData = {
+      1'b0,                       // 191
+      trainActive,                // 190
+      sDoneReason,                // 189:188
+      sEvaluated,                 // 187:156
+      sRunId,                     // 155:140
+      sTestValid,                 // 139
+      sTestSurv,                  // 138:132
+      sTestW,                     // 131:128
+      sTestScore,                 // 127:102
+      sChampExists,               // 101
+      sStepsPerSec,               // 100:81
+      aiCommitted,                // 80
+      trainComplete,              // 79
+      sRunState,                  // 78:76
+      sStage,                     // 75:73
+      sStall,                     // 72:67
+      sLastMean,                  // 66:60
+      sValTopSurv,                // 59:53
+      sChampSurv,                 // 52:46
+      sChampW,                    // 45:42
+      sChampScore,                // 41:16
+      sChampGen,                  // 15:8
+      sGen                        // 7:0
+  };
 
   logic trainBeat;     // LEDR9 in TRAIN AI: toggles once per generation
 
@@ -520,7 +636,7 @@ module game_system
     uiSources[SRC_TR_SIM]        = 32'(simLevel);
     uiSources[SRC_TR_STAGE]      = 32'(sStage);
     uiSources[SRC_TR_RUNSTATE]   = 32'(sRunState);
-    uiSources[SRC_TR_WORLD]      = 32'(sRunIdx);
+    uiSources[SRC_TR_WORLD]      = 32'(sWorld);
     uiSources[SRC_TR_SEED]       = 32'(sSeed);
     uiSources[SRC_TR_STEP]       = 32'(sPlaySteps);
     uiSources[SRC_TR_READY]      = 32'(sReadySteps);
@@ -540,11 +656,31 @@ module game_system
       uiSources[SRC_L0_FIT   + 6 * k] = 32'(sLaneFit[k]);
       uiSources[SRC_L0_STEPS + 6 * k] = 32'(sLaneSteps[k]);
     end
-    for (int i = 0; i < 8; i++) begin
-      uiSources[SRC_TOP0_ID    + 3 * i] = sTopValid[i] ? 32'(sTopIds[i]) : 32'd0;
-      uiSources[SRC_TOP0_GATES + 3 * i] = sTopValid[i] ? 32'(sTopScores[i][FIT_W-1:16]) : 32'd0;
-      uiSources[SRC_TOP0_FIT   + 3 * i] = sTopValid[i] ? 32'(sTopScores[i]) : 32'd0;
-    end
+    uiSources[SRC_TR_PREV_BEST]  = sPrevBestValid ? 32'(sPrevBest) : 32'd0;
+    uiSources[SRC_VAL_TOP]       = sValTopValid ? 32'(sValTop) : 32'd0;
+    uiSources[SRC_VAL_TOP_GATES] = sValTopValid ? 32'(sValTop[FIT_W-1:16]) : 32'd0;
+    uiSources[SRC_VAL_TOP_W]     = sValTopValid ? 32'(sValTopW) : 32'd0;
+    uiSources[SRC_VAL_TOP_CAND]  = sValTopValid ? 32'(sValTopCand) : 32'd0;
+    uiSources[SRC_CH_SCORE]      = sChampExists ? 32'(sChampScore) : 32'd0;
+    uiSources[SRC_CH_GATES]      = sChampExists ? 32'(sChampScore[FIT_W-1:16]) : 32'd0;
+    uiSources[SRC_CH_W]          = sChampExists ? 32'(sChampW) : 32'd0;
+    uiSources[SRC_CH_SURV]       = sChampExists ? 32'(sChampSurv) : 32'd0;
+    uiSources[SRC_CH_GEN]        = sChampExists ? 32'(sChampGen) : 32'd0;
+    uiSources[SRC_CH_CAND]       = sChampExists ? 32'(sChampCand) : 32'd0;
+    uiSources[SRC_TR_STALL]      = 32'(sStall);
+    uiSources[SRC_TR_MUT]        = 32'(sMutLevel);
+    uiSources[SRC_TEST_SCORE]    = sTestValid ? 32'(sTestScore) : 32'd0;
+    uiSources[SRC_TEST_GATES]    = sTestValid ? 32'(sTestScore[FIT_W-1:16]) : 32'd0;
+    uiSources[SRC_TEST_W]        = sTestValid ? 32'(sTestW) : 32'd0;
+    uiSources[SRC_TEST_SURV]     = sTestValid ? 32'(sTestSurv) : 32'd0;
+    uiSources[SRC_TR_RESULT]     = (sStage == STG_COMPLETE) ? 32'(sDoneReason) + 32'd1 : 32'd0;
+
+    // WATCH overlays: which network is playing
+    uiSources[SRC_AI_KIND]       = aiCommitted ? 32'd1 : 32'd0;
+    uiSources[SRC_AI_RUNID]      = aiCommitted ? 32'(aiRunId) : 32'd0;
+    uiSources[SRC_AI_GENS]       = aiCommitted ? 32'(aiGen) : 32'd0;
+    uiSources[SRC_AI_VALW]       = aiCommitted ? 32'(aiValW) : 32'd0;
+    uiSources[SRC_AI_TESTW]      = aiCommitted ? 32'(aiTestW) : 32'd0;
   end
 
   // The text writer starts SNAP_DELAY clocks after the frame starts, after the
@@ -565,9 +701,26 @@ module game_system
     end
   end
 
-  // training screen graphics (lane windows, backdrop)
-  logic   trainDR;
-  color_t trainRGB;
+  // training screen graphics: learning chart over the lane windows and backdrop
+  logic   trainDR, laneDR, chartDR;
+  color_t trainRGB, laneRGB, chartRGB;
+
+  chart_draw chart (
+      .clk           (clk),
+      .resetN        (resetN),
+      .pixelX        (pixelX),
+      .pixelY        (pixelY),
+      .enable        (trainScreen),
+      .count         (sGen),
+      .histWe        (histWe),
+      .histWa        (histWa),
+      .histWd        (histWd),
+      .drawingRequest(chartDR),
+      .RGBout        (chartRGB)
+  );
+
+  assign trainDR  = chartDR || laneDR;
+  assign trainRGB = chartDR ? chartRGB : laneRGB;
 
   lane_view_draw laneViews (
       .clk           (clk),
@@ -580,8 +733,8 @@ module game_system
       .viewActive    (sViewActive),
       .viewColX      (sViewColX),
       .viewGapTop    (sViewGapTop),
-      .drawingRequest(trainDR),
-      .RGBout        (trainRGB)
+      .drawingRequest(laneDR),
+      .RGBout        (laneRGB)
   );
 
   logic   charDR;
@@ -624,7 +777,7 @@ module game_system
 
   // ---------------------------------------------------------------- indicators
   // Game modes: HEX2..HEX0 = current score, HEX5..HEX3 = best score.
-  // TRAIN AI:   HEX5..HEX3 = generation, HEX2..HEX0 = best gates of the generation.
+  // TRAIN AI:   HEX5..HEX3 = generation, HEX2..HEX0 = champion's validation gates.
   // Leading zeros are blanked.
   function automatic logic [2:0][3:0] bcd3(input logic [9:0] v);
     int n;
@@ -638,7 +791,7 @@ module game_system
   always_comb begin
     if (trainScreen) begin
       hexHigh = bcd3(10'(sGen));
-      hexLow  = bcd3(sGenBestValid ? sGenBest[FIT_W-1:16] : 10'd0);
+      hexLow  = bcd3(sChampExists ? sChampScore[FIT_W-1:16] : 10'd0);
     end else begin
       hexHigh = best;
       hexLow  = score;

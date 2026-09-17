@@ -4,7 +4,7 @@
 # lpm_rom models find their .mif files at the same relative paths as Quartus.
 # Sources are passed as relative paths because the repository path has a space.
 #
-# Usage: sh sim/run_tests.sh [tb_name ...]          (default: every tb_*.sv except tb_render)
+# Usage: sh sim/run_tests.sh [tb_name ...]          (default: every tb_*.sv except tb_render and tb_learn)
 #        SIMDIR=build/sim2 sh sim/run_tests.sh ...   (a second run in parallel)
 #        sh sim/run_tests.sh tb_render +shots=2,40      (writes build/sim/frame_NNN.png)
 
@@ -41,13 +41,13 @@ for arg in "$@"; do
   esac
 done
 if [ -z "$TESTS" ]; then
-  TESTS=$(cd "$ROOT/sim" && ls tb_*.sv | sed 's/\.sv$//' | grep -v '^tb_render$')
+  TESTS=$(cd "$ROOT/sim" && ls tb_*.sv | sed 's/\.sv$//' | grep -v '^tb_render$' | grep -v '^tb_learn$')
 fi
 
 status=0
 for tb in $TESTS; do
   # shellcheck disable=SC2086
-  result=$("$MODELSIM/vsim" -c -quiet -L lpm_ver -L altera_mf_ver work."$tb" $PLUSARGS -do "run -all; quit -f" 2>&1)
+  result=$("$MODELSIM/vsim" -c -quiet -L work -L lpm_ver -L altera_mf_ver work."$tb" $PLUSARGS -do "run -all; quit -f" 2>&1)
   echo "$result" | grep -E "^# (PASS|FAIL|INFO|\*\* (Error|Fatal))" | sed 's/^# //'
   if ! echo "$result" | grep -q "^# PASS: $tb"; then
     status=1

@@ -10,7 +10,7 @@
 //   - LEDR[8:1] show the live alive mask, HEX5..3 the generation
 //   - Numpad 4 held on the training screen raises the simulation speed and
 //     leaves the world speed unchanged; the game menus do not move
-//   - KEY1 stops training and returns to the mode menu
+//   - KEY1 stops training: final test, champion committed; KEY1 again leaves
 `timescale 1ns / 1ps
 
 module tb_train_screen;
@@ -150,8 +150,11 @@ module tb_train_screen;
     end
     if (cells(0, 19, 4) != hex_text(dut.sRunId)) fail($sformatf("%s RUN ID '%s'", when, cells(0, 19, 4)));
     if (cells(0, 37, 3) != dec(dut.sGen, 3)) fail($sformatf("%s generation '%s'", when, cells(0, 37, 3)));
-    if (cells(0, 49, 1) != dec(dut.sBatch + 1, 1)) fail($sformatf("%s batch '%s'", when, cells(0, 49, 1)));
-    if (cells(1, 39, 1) != (dut.sRunIdx == 0 ? "A" : "B")) fail($sformatf("%s world '%s'", when, cells(1, 39, 1)));
+    if (cells(0, 52, 1) != dec(dut.sBatch + 1, 1)) fail($sformatf("%s batch '%s'", when, cells(0, 52, 1)));
+    if (dut.sWorld < 2 && cells(1, 39, 2) != (dut.sWorld == 0 ? "A " : "B "))
+      fail($sformatf("%s world '%s'", when, cells(1, 39, 2)));
+    if (dut.sWorld >= 2 && dut.sWorld < 6 && cells(1, 39, 2) != $sformatf("V%0d", dut.sWorld - 1))
+      fail($sformatf("%s world '%s'", when, cells(1, 39, 2)));
     if (cells(1, 48, 4) != hex_text(dut.sSeed)) fail($sformatf("%s seed '%s'", when, cells(1, 48, 4)));
     if (cells(2, 45, 4) != dec(dut.sPlaySteps, 4)) fail($sformatf("%s play step '%s'", when, cells(2, 45, 4)));
     if (cells(2, 8, 6) != "MEDIUM" || cells(2, 15, 1) != "2") fail($sformatf("%s config '%s %s'", when, cells(2, 8, 6), cells(2, 15, 1)));
@@ -200,17 +203,33 @@ module tb_train_screen;
       if (dut.simLevel != 3'd3) fail($sformatf("Numpad 4 held for 14 frames: simulation level %0d", dut.simLevel));
       if (dut.speedLevel != worldBefore) fail("Numpad 4 changed the world speed during training");
       if (dut.screen != screenBefore) fail("the game menus reacted during training");
-      if (cells(0, 59, 5) != "X16  ") fail($sformatf("SIM shows '%s'", cells(0, 59, 5)));
+      if (cells(0, 61, 5) != "X16  ")
+        fail($sformatf("SIM shows '%s' (cells %h %h %h, source %0d, page %0d)", cells(0, 61, 5),
+                       dut.textScreens.charRam[61], dut.textScreens.charRam[62], dut.textScreens.charRam[63],
+                       dut.uiSources[SRC_TR_SIM], dut.page));
     end
     check_frame("x16 frame");
 
-    // KEY1: back to the mode menu, training stopped
+    // KEY1: stop, final test, keep the champion; then KEY1 leaves the complete screen
+    force dut.simLevel = 3'd7;
+    wait (dut.trainer.ctrl.champExists);
+    backN = 1'b0;
+    repeat (100) @(negedge clk);
+    backN = 1'b1;
+    wait (dut.trainComplete);
+    wait_frames(2);
+    if (dut.mode != 3'd4 || !dut.aiCommitted) fail("KEY1 did not stop training with a committed champion");
+    if (cells(51, 12, 8) != "STOPPED ") fail($sformatf("result shown as '%s'", cells(51, 12, 8)));
+    $display("INFO: stopped at generation %0d: final test %0d gates, %0d/8 worlds",
+             dut.sGen, dut.sTestScore >> 16, dut.sTestW);
     backN = 1'b0;
     repeat (100) @(negedge clk);
     backN = 1'b1;
     wait_frames(2);
-    if (dut.mode != 3'd0 || dut.trainer.active || dut.trainer.lanes.running) fail("KEY1 did not stop training");
+    if (dut.mode != 3'd0 || dut.trainer.active || dut.trainer.lanes.running) fail("KEY1 did not leave the complete screen");
     if (dut.page != PAGE_MODE) fail("mode menu not shown after KEY1");
+    if (!dut.aiCommitted) fail("the committed AI was lost when leaving");
+    release dut.simLevel;
 
     $display("INFO: %0d frames of training text checked", frames);
     if (errors == 0) $display("PASS: tb_train_screen");

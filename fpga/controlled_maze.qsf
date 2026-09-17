@@ -57,6 +57,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/leading_zero_blank.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/lfsr_rng.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/COMMON/button_pulse.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DEBUG/fps_meter.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/DEBUG/train_probe.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/frame_sequencer.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/game_fsm.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/GAME/key_input.sv
@@ -79,6 +80,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/nn_sched.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/nn_datapath.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/ai_player.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/world_seeds.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/xorshift32.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/top8_list.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/sim_throttle.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/ML/train_lane.sv
@@ -93,6 +95,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/text_draw.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/speed_readout.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/ui_panels.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/lane_view_draw.sv
+set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/chart_draw.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/objects_mux_top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/DRAW/hex_display_top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE RTL/UI/char_screen.sv

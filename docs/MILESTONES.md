@@ -16,6 +16,7 @@ Measurements are from Quartus Prime Lite 17.0.0 Build 595, full compile (`quartu
 | M8+ audio (score/fail sounds), Numpad 4/6 world speed (commit `2a77c15`) | not recorded | 1,352 (3%) | 809 | 71,680 | 11 | 0 | +11.18 ns (hold +0.118 ns) | reported working by the team |
 | M9 world/lane split, fixed-point network, text screens, mode menu, WATCH AI (demo network), KEY1/SW1 | 95 s | 2,051 (5%) | 1,507 | 418,048 (7%) | 66 (12%) | 4 | +11.30 ns (hold +0.122 ns) | passed (reported by the user, 2026-09-17) |
 | M10 8 real parallel training lanes, throttle, batch scheduler (fixed population), snapshot, training screen | 221 s | 6,591 (16%) | 6,319 | 507,648 (9%) | 78 (14%) | 14 | +10.43 ns (hold +0.113 ns) | not programmed (M12 board test) |
+| M11 genetic algorithm, validation, champion, final test, learning chart, commit to WATCH AI, JTAG probe | 230 s | 7,165 (17%) | 7,144 | 545,280 (10%) | 85 (15%) | 16 | +9.03 ns (hold +0.093 ns) | programmed; training measured over JTAG |
 
 ## M0 — Baseline of the supplied demo
 
@@ -354,3 +355,73 @@ A step is 48 clocks plus one clock before the next step starts. At MAX that is *
 - With the M10 population, the 16 runs of a generation (runs cut at 200 steps in `tb_train_sched`) take about 307,000 clocks (9.7 ms) including loading.
 - A full-length run (88 + 4,095 steps) takes 205,000 clocks = 6.5 ms at MAX.
 - The training screen shows the measured steps per second (STEPS/S) on the board.
+
+## M11 — Real genetic learning on the FPGA (2026-09-17)
+
+The trainer now evolves its own population. Design details are in `DESIGN.md` section L (Genetic learning).
+- **Start:** a random population is drawn from the RUN ID.
+- **Each generation:** two new training worlds (D3). Tournament selection, neuron-block crossover and adaptive mutation, with 2 elites.
+- **Validation:** the top 8 play 4 fixed validation worlds. The champion is the best validation score ever seen, kept in `CHMP`.
+- **Stop:** after 100 generations, when SOLVED, or on STOP (KEY1). Then the champion plays 8 unseen test worlds, and its genes are copied into the WATCH AI memory (`WTCH`) with its settings and results.
+- **WATCH AI** starts the trained champion at once in its training world. It is the exact network the FPGA trained: the replay test below reproduces its scores.
+- **Screen:** the training screen shows the validation panel, the champion, the final test and a learning chart.
+- **JTAG:** `train_probe` (In-System Sources and Probes "TRNP") and `tools/train_probe.tcl` read and drive training from the PC.
+
+### What was built
+- `train_ctrl` (M11): `INIT_POP` → generation loop (train, validate, evolve, commit) → final test → `WATCH_COPY` → `COMPLETE`.
+  - Memories: population A/B (their roles swap), fitness memory, `CHMP`.
+  - STOP is acted on at the next run, pause or load. A STOP before any champion exists commits nothing. A second STOP skips the final test.
+- `xorshift32` (GA random numbers, separate from the world seeds).
+- `train_top`: the stop/abort/hold/commit interface, and the committed-AI registers without reset (D2).
+- `chart_draw`: learning chart with its 128-entry history memory. `train_probe`, `sim/models/altsource_probe.sv`, `tools/train_probe.tcl`.
+- `mode_fsm`:
+  - KEY1 on the training screen = stop and keep the champion; KEY1 or Enter leaves once training is COMPLETE; the screen follows the trainer back to the menu if nothing was kept;
+  - WATCH AI with a trained AI starts at once in its training world;
+  - the JTAG start, stop and leave requests.
+- `game_system`: the trainer's WATCH port drives `ai_player`; the trained settings drive `game_fsm.autoStart` and the world speed; the chart layer; HEX2–0 = champion's validation gates; the RUN ID is also latched by a JTAG start.
+- Screens: TRAIN page v2 (GENERATION n/100, validation panel, champion, final test, result, chart legend). The WATCH and WATCH debug overlays name the network (TRAINED / DEMO NET, RUN ID, generations, validation and test worlds).
+
+### Tests
+| Testbench | What it shows |
+|---|---|
+| `tb_ga` | 6 generations with every memory shadowed:<br>• INIT_POP: 2,368 genes, each equal to its random word.<br>• Every lane of every training, validation and test run holds the right genes and seed.<br>• The fitness memory is written only by training runs.<br>• Generation top, champion rule, champion genes, stall and mutation level match the reference.<br>• Elites and all 13,764 child genes equal a reference tournament, crossover and mutation (6.1% of genes mutated at level 0; 75% of children crossed over, as designed).<br>• History entries, population swap, final test, WATCH copy, a single commit, and COMPLETE until left. |
+| `tb_train_flow` | • A STOP before any champion commits nothing.<br>• A run to MAX_GEN commits the right settings and results.<br>• **Replay:** the committed genes, played through `game_logic` + `ai_player` (the WATCH AI path), reproduce the champion's validation score on V1–V4 and the final test score on T1–T8 exactly.<br>• TRAIN AGAIN stopped early keeps the old AI; stopped later, it replaces it.<br>• KEY0 keeps the AI.<br>• A STOP during the final test skips it and still commits.<br>• SOLVED ends a run (SOLVE_STALL = 1). |
+| `tb_train_sched` | Updated: the genes are checked against the shadowed GA population; validation and test runs are excluded from the batch log |
+| `tb_mode_fsm` | Stop / complete / leave, the stop without a champion, JTAG start, stop and exit, and the trained WATCH AI's automatic start |
+| `tb_char_screen`, `tb_train_screen` | Updated for the TRAIN v2 layout (BAR, SIM, mutation rate, result and test-world words; the chart area stays free of text) |
+| `tb_learn` (not in the default list) | Full-length learning in simulation. For RUN 3F2C (MEDIUM, 2 corals, speed 2):<br>• the champion completed 3 of 4 validation worlds at generation 3 and all 4 at generation 8;<br>• mean training survival rose from 4% to 52% by generation 11;<br>• that took 0.97 s of board time. |
+
+### Measured on the board (M11 build, checksum `0x03261FCB`, 2026-09-17 04:35–04:38)
+The board was programmed with `quartus_pgm` and every run was started and logged over JTAG (`quartus_stp -t tools/train_probe.tcl run <d> <c> <s> 7 …`) at SIM MAX.
+- The M11 build latches the RUN ID only on a key press, so all JTAG runs used RUN ID 7FFF (the `random.sv` reset value). Two MEDIUM runs gave identical results, which shows that training on the hardware is deterministic.
+- The log starts a few generations late because the JTAG tool needs time to start.
+- The logs are in `build/board_*.log`.
+
+| World trained on | Champion completes V1–V4 at | Stop | Time to COMPLETE (log clock) | Final test (8 unseen worlds) |
+|---|---|---|---|---|
+| EASY, 1 coral, speed 2 | generation 3 | SOLVED at generation 98 | 12.3 s | 8/8 worlds, 88 gates, 100% |
+| MEDIUM, 2 corals, speed 2 | generation 5 | SOLVED at generation 81 | 10.0 s | 8/8 worlds, 176 gates, 100% |
+| HARD, 3 corals, speed 3 | generation 5 | SOLVED at generation 70 | 8.7 s | 8/8 worlds, 336 gates, 100% |
+| HARD, 3 corals, speed 7 (hardest) | generation 7 | SOLVED at generation 41 | 4.0 s | 4/8 worlds, 440 gates, 72% |
+
+- **Throughput:** the on-screen/probe counter reads **641,180–641,536 steps/s** at MAX. That is 8 lanes × 641,000 = 5.1 million lane-steps per second, against 642,857 in theory. The difference is the per-frame snapshot and the scheduler states.
+- **Training speed:**
+  - a late generation (most candidates survive all 4,095 steps) takes about 0.13 s;
+  - a whole MEDIUM run from start to the committed champion takes about 10.5 s;
+  - 81 generations = 5,184 candidate evaluations plus 324 validation runs and the 8-run final test.
+- **Validation–test gap:** none for EASY, MEDIUM and HARD at speed 3. At speed 7 the champion completed all 4 validation worlds but only 4 of the 8 unseen worlds. This is the optimism the final test is there to show.
+
+### Build (2026-09-17 04:50, final M11)
+- **Full compile:** 230 s, 0 errors, 0 critical warnings, 223 warnings.
+- **New warnings (all expected):**
+  - 12241 port-connectivity notes for the JTAG pins of `altsource_probe`, which the SLD hub connects after synthesis;
+  - the rest is the M9/M10 set.
+- **Resources:** 7,165 ALMs (17%), 7,144 registers, 545,280 memory bits (10%), 85 RAM blocks (15%), 16 DSP (14%).
+  - `train_top` 3,954 ALMs (`train_ctrl` 909), `chart_draw` 39, `train_probe` 117, `lane_view_draw` 287, `char_screen` 585.
+- **Timing:** met in all corners. Setup +9.03 ns (Fmax 46.5 MHz), hold +0.093 ns. The JTAG clock `altera_reserved_tck` also meets timing.
+- **Programming file:** checksum `0x0325E5FF`. The measurements above used the first M11 build (`0x03261FCB`). The only difference is that the RUN ID is now also latched by a JTAG start.
+
+### Tool issues found
+- ModelSim's precompiled `altera_mf` library has an `altsource_probe` model that leaves the source outputs floating (z), so the simulation-speed mux went X in `tb_train_screen`. `run_tests.sh` now searches `work` first (`-L work`), and `sim/models/altsource_probe.sv` (sources = 0) is used.
+- `get_insystem_source_probe_instance_info` must be called before `start_insystem_source_probe`; otherwise quartus_stp reports an already active session.
+- Quartus 17 reported an out-of-range index in a `for` loop with a variable bound (`top8_list`, M10). The loop now has constant bounds.

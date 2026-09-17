@@ -250,7 +250,31 @@ Superseded in M9 by section L: `game_logic` exports every signal the AI needs (b
   - Borders: cyan = alive, red = dead (darkened, red cross), green = done, grey = idle.
   - `char_screen` page TRAIN adds the header, the two label lines under each window, the generation statistics and a legend.
 - **Indicators in TRAIN AI:** LEDR[8:1] = lanes 7..0 alive, LEDR9 toggles once per generation, HEX5–3 = generation, HEX2–0 = best gates of the generation.
-- **M11–M12 (planned):** evolution, validation on 4 fixed worlds, champion, final test on 8 unseen worlds, learning chart, commit to WATCH AI, pause menu, TRAINING COMPLETE page.
+**Genetic learning (M11).** `train_ctrl` is now the full algorithm (the M10 fixed population is gone). A training run is a deterministic function of its RUN ID and settings.
+- **Start:** `world_seeds` and the GA generator `xorshift32` (13/17/5) are loaded from the RUN ID. 64 × 37 random genes (−64..63) go into the current population.
+- **Generation g:**
+  1. **Train.** New worlds A_g, B_g. 8 batches play them; results go to the fitness memory and the top-8 list.
+  2. **Validate.** The generation's top 8 (by training fitness) play the fixed worlds V1–V4, all 8 at once. The best lane is the generation top. If its score is strictly better than the champion's, it becomes the champion: its genes are copied into `CHMP` (single-port, In-System Memory Content Editor) and the stall count resets. Otherwise the stall count grows. Validation results never reach the fitness memory.
+  3. **Evolve** (into the other population memory; the two swap at COMMIT):
+     - slots 0 and 1 = the two best by training fitness;
+     - each of the other 62 children: two tournaments of 4 random candidates (first best wins), then with probability 3/4 a uniform crossover of the 7 neuron blocks;
+     - then per-gene mutation with probability 1/16, 1/8 or 1/4 (stall < 8, 8–15, ≥ 16). 7/8 of mutations add (a − b) · 2^level (a, b uniform 0..15, saturated); 1/8 draw a fresh gene.
+  4. **Commit.** The populations swap. A chart entry {champion %, generation top %, mean %} is written. Then the stop test.
+- **Stop:** after 100 generations, when SOLVED (the champion completed V1–V4 and 10 generations passed without a better one), or on STOP.
+  - STOP is KEY1, or the JTAG probe. It is acted on at the next run, pause or load.
+  - A STOP before any champion exists returns to idle and commits nothing.
+- **Final test:** the champion alone (lane 0; lanes 1–7 idle) plays the unseen worlds T1–T8 once. A second STOP skips it.
+- **Commit to WATCH AI:** the champion's genes are copied into `WTCH` (the `ai_player` memory). The settings, RUN ID, generation count and validation/test results go into `train_top` registers that have no reset, so KEY0 keeps them (D2). The trainer then stays COMPLETE until the user leaves the screen.
+- **WATCH AI with a trained AI:** `mode_fsm` starts the game at once with the trained difficulty, columns and world speed (`game_fsm.autoStart`, `world_speed_control.load`). The game menus and keys are hidden until GET READY.
+  - The overlay names the network (TRAINED / DEMO NET), its RUN ID, generations, validation worlds and test worlds.
+  - In M11 the demo network is still built in for WATCH AI before anything is trained; M12 removes it.
+- **Training screen v2:**
+  - Header: GENERATION n/100, stage (TRAINING / VALIDATE / TESTING / EVOLVING / COMPLETE), run state, world (A, B, V1–V4, T1–T8) and seed.
+  - Left panel: this generation's best and last best on these worlds; the validation panel (generation top, champion, its generation, stall, mutation rate); the final test; the stop result.
+  - Right panel: the learning chart (`chart_draw`), one 2-px column per generation from a 128-entry history memory. Dim bar = mean training survival (its own worlds); cyan = generation top on validation; gold = champion on validation.
+- **Indicators:** HEX2–0 now show the champion's validation gates.
+- **JTAG (`train_probe`, In-System Sources and Probes "TRNP"):** a 192-bit probe of the snapshot statistics and 16 source bits (start with given settings, stop, leave, simulation-speed override). `tools/train_probe.tcl` (quartus_stp) reads, drives and logs training on the board. `sim/models/altsource_probe.sv` is its simulation stand-in (sources stay 0).
+- **M12 (planned):** pause menu, TRAINING COMPLETE page with WATCH AI / TRAIN AGAIN / MAIN MENU, completion sound, `DEMO_NET = 0`.
 
 ## M. Risks
 

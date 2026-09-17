@@ -1,8 +1,9 @@
 // Batch scheduler, fitness memory, top-8 list and display snapshot of the
-// trainer (train_top with the M10 fixed population), at MAX simulation speed
-// with runs shortened to T_LIMIT steps.
+// trainer (train_top), at MAX simulation speed with runs shortened to T_LIMIT
+// steps. The genes are checked against the population memory, shadowed from
+// the genetic algorithm's writes (the GA itself is checked in tb_ga).
 //
-// Checks, for three generations:
+// Checks, for three generations (training runs):
 //   - every candidate is played exactly once per generation on world A_g and
 //     once on world B_g, by the lane whose label shows it, with its own genes
 //     in that lane (the lane weight memory is shadowed from its writes)
@@ -58,31 +59,34 @@ module tb_train_sched;
   logic [2:0]                   sStage, sRunState;
   logic [15:0]                  sRunId, sSeed;
   logic [7:0]                   sGen;
-  logic [3:0]                   sBatch, sRunIdx;
+  logic [3:0]                   sBatch, sWorld;
   logic [11:0]                  sPlaySteps;
   logic [6:0]                   sReadySteps, sGenDone, sLastMean;
   logic [25:0]                  sGenBest;
   logic [5:0]                   sGenBestCand;
   logic                         sGenBestValid, sLastMeanValid;
-  logic [7:0][25:0]             sTopScores;
-  logic [7:0][5:0]              sTopIds;
-  logic [7:0]                   sTopValid;
   logic [31:0]                  sEvaluated;
   logic [19:0]                  sStepsPerSec;
 
   train_top #(.T_LIMIT(TL), .HOLD_RUN_FRAMES(HOLD_RUN), .HOLD_GEN_FRAMES(HOLD_GEN), .SECOND_CLOCKS(100000)) dut (
-      .clk(clk), .resetN(resetN), .start(start), .abort(abort), .runIdIn(runIdIn),
+      .clk(clk), .resetN(resetN), .start(start), .stop(1'b0), .abort(abort), .hold(1'b0), .runIdIn(runIdIn),
       .difficultyIn(2'd1), .columnsIn(2'd3), .speedIn(3'd4), .simLevel(simLevel), .frameTick(frameTick),
-      .active(active), .liveAlive(liveAlive), .genPulse(genPulse), .snapTaken(snapTaken),
+      .active(active), .complete(), .liveAlive(liveAlive), .genPulse(genPulse),
+      .watchWe(), .watchWa(), .watchWd(), .aiValid(), .aiDifficulty(), .aiColumns(), .aiSpeed(), .aiRunId(),
+      .aiGen(), .aiValW(), .aiValGates(), .aiTestW(), .aiTestGates(), .aiTestValid(),
+      .histWe(), .histWa(), .histWd(), .snapTaken(snapTaken),
       .cfgDifficulty(cfgDifficulty), .cfgColumns(cfgColumns), .cfgSpeed(cfgSpeed),
       .sLaneState(sLaneState), .sLaneCand(sLaneCand), .sLaneAct(sLaneAct), .sLaneGates(sLaneGates),
       .sLaneFit(sLaneFit), .sLaneSteps(sLaneSteps), .sViewBirdY(sViewBirdY), .sViewActive(sViewActive),
       .sViewColX(sViewColX), .sViewGapTop(sViewGapTop), .sStage(sStage), .sRunState(sRunState),
-      .sRunId(sRunId), .sGen(sGen), .sBatch(sBatch), .sRunIdx(sRunIdx), .sSeed(sSeed),
+      .sWorld(sWorld), .sRunId(sRunId), .sGen(sGen), .sBatch(sBatch), .sSeed(sSeed),
       .sPlaySteps(sPlaySteps), .sReadySteps(sReadySteps), .sGenBest(sGenBest), .sGenBestCand(sGenBestCand),
-      .sGenBestValid(sGenBestValid), .sGenDone(sGenDone), .sLastMean(sLastMean), .sLastMeanValid(sLastMeanValid),
-      .sTopScores(sTopScores), .sTopIds(sTopIds), .sTopValid(sTopValid), .sEvaluated(sEvaluated),
-      .sStepsPerSec(sStepsPerSec));
+      .sGenBestValid(sGenBestValid), .sPrevBest(), .sPrevBestValid(), .sGenDone(sGenDone),
+      .sLastMean(sLastMean), .sLastMeanValid(sLastMeanValid),
+      .sValTop(), .sValTopW(), .sValTopSurv(), .sValTopCand(), .sValTopValid(), .sChampExists(),
+      .sChampScore(), .sChampW(), .sChampSurv(), .sChampGen(), .sChampCand(), .sStall(), .sMutLevel(),
+      .sTestScore(), .sTestW(), .sTestSurv(), .sTestValid(), .sDoneReason(),
+      .sEvaluated(sEvaluated), .sStepsPerSec(sStepsPerSec));
 
   int errors = 0;
 
@@ -91,13 +95,19 @@ module tb_train_sched;
     if (errors < 30) $display("FAIL: %s", msg);
   endtask
 
-  logic [7:0] pop [4096];
-  initial $readmemh("RTL/MIF/pop_init.hex", pop);
-
-  // ---------------------------------------------------------------- lane weight memory shadow
+  // ---------------------------------------------------------------- memory shadows
+  logic [7:0]  popA [4096];
+  logic [7:0]  popB [4096];
   logic [63:0] laneMem [64];
-  always @(posedge clk)
-    if (dut.laneWe) laneMem[dut.laneWa] <= dut.laneWd;
+  always @(posedge clk) begin
+    if (dut.laneWe)    laneMem[dut.laneWa] <= dut.laneWd;
+    if (dut.ctrl.weA)  popA[dut.ctrl.popWa] <= dut.ctrl.popWd;
+    if (dut.ctrl.weB)  popB[dut.ctrl.popWa] <= dut.ctrl.popWd;
+  end
+
+  function automatic logic [7:0] cur_gene(input int c, input int g);
+    return dut.ctrl.curIsA ? popA[c * 64 + g] : popB[c * 64 + g];
+  endfunction
 
   // ---------------------------------------------------------------- per-generation log
   int          genIdx = 0;
@@ -112,7 +122,7 @@ module tb_train_sched;
   int          evaluatedCount = 0;
 
   always @(posedge clk) begin
-    if (dut.runStart) begin
+    if (dut.runStart && dut.ctrl.runKind == 2'd0) begin
       runsThisGen++;
       if (dut.laneEnable != '1) fail("a training run does not use all 8 lanes");
       for (int k = 0; k < LANES; k++) begin
@@ -120,9 +130,9 @@ module tb_train_sched;
         c = int'(dut.ctrl.laneCand[k]);
         // lane k holds candidate c's genes
         for (int g = 0; g < NN_GENES; g++)
-          if (laneMem[g][k * 8 +: 8] !== pop[c * 64 + g]) begin
+          if (laneMem[g][k * 8 +: 8] !== cur_gene(c, g)) begin
             fail($sformatf("gen %0d: lane %0d gene %0d = %02h, candidate %0d has %02h", genIdx, k, g,
-                           laneMem[g][k * 8 +: 8], c, pop[c * 64 + g]));
+                           laneMem[g][k * 8 +: 8], c, cur_gene(c, g)));
             break;
           end
         if (c != int'(dut.ctrl.batch) * 8 + k) fail($sformatf("lane %0d plays candidate %0d in batch %0d", k, c, dut.ctrl.batch));
@@ -201,7 +211,7 @@ module tb_train_sched;
     end
   end
 
-  always @(posedge clk) if (dut.runStart) begin genA <= dut.ctrl.seedA; genB <= dut.ctrl.seedB; end
+  always @(posedge clk) if (dut.runStart && dut.ctrl.runKind == 2'd0) begin genA <= dut.ctrl.seedA; genB <= dut.ctrl.seedB; end
 
   // ---------------------------------------------------------------- snapshots
   int snapWait = 0, worstWait = 0, snaps = 0, deadShown = 0;
@@ -232,7 +242,7 @@ module tb_train_sched;
         expView[k]  = {dut.lanes.viewBirdY[k], dut.lanes.viewActive[k], dut.lanes.viewColX[k], dut.lanes.viewGapTop[k]};
         expCand[k]  = dut.ctrl.laneCand[k];
       end
-      expSeed = (dut.ctrl.runIdx == 0) ? dut.ctrl.seedA : dut.ctrl.seedB;
+      expSeed = dut.ctrl.runSeed;
       expPlay = dut.lanes.playSteps;
       expRunState = (dut.ctrl.runState == RS_READY && dut.lanes.playing) ? RS_PLAYING : dut.ctrl.runState;
     end

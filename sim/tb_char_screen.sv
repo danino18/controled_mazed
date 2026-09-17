@@ -368,16 +368,29 @@ module tb_char_screen;
     sources[SRC_L5_STATE]   = LANE_DEAD;
     sources[SRC_TR_WORLD]   = 1;
     sources[SRC_TR_SIM]     = 6;
+    sources[SRC_TR_MUT]     = 2;
+    sources[SRC_TR_RESULT]  = 2;
     show_page(PAGE_TRAIN, "training screen");
-    if (cells_text(40, 12, 8) != "###-----") fail($sformatf("BAR 3 shown as '%s'", cells_text(40, 12, 8)));
+    if (cells_text(41, 10, 8) != "###-----") fail($sformatf("BAR 3 shown as '%s'", cells_text(41, 10, 8)));
     if (cells_text(0, 19, 4) != "3F2C")     fail($sformatf("HEX shown as '%s'", cells_text(0, 19, 4)));
     if (cells_text(35, 24, 5) != "DEAD ")    fail($sformatf("lane 5 state shown as '%s'", cells_text(35, 24, 5)));
     if (dut.charRam[35 * 80 + 24][8:6] != 3'd4) fail("DEAD is not red");
     if (cells_text(1, 39, 2) != "B ")       fail($sformatf("world shown as '%s'", cells_text(1, 39, 2)));
-    if (cells_text(0, 59, 5) != "X1024")    fail($sformatf("SIM shown as '%s'", cells_text(0, 59, 5)));
+    if (cells_text(0, 61, 5) != "X1024")    fail($sformatf("SIM shown as '%s'", cells_text(0, 61, 5)));
+    if (cells_text(47, 26, 4) != "1/4 ")    fail($sformatf("mutation rate shown as '%s'", cells_text(47, 26, 4)));
+    if (cells_text(51, 12, 8) != "SOLVED  ") fail($sformatf("result shown as '%s'", cells_text(51, 12, 8)));
+    sources[SRC_TR_WORLD] = 9;
+    next_frame_written();
+    if (cells_text(1, 39, 2) != "T4")       fail($sformatf("test world shown as '%s'", cells_text(1, 39, 2)));
+    // the lane windows and the chart area stay free of text and panels
     for (int c = 0; c < 80; c++)
       if (dut.charRam[10 * 80 + c] != 10'd0) begin
         fail("the lane window area is not empty in the character layer");
+        break;
+      end
+    for (int c = 46; c < 80; c++)
+      if (dut.charRam[45 * 80 + c] != 10'd0) begin
+        fail("the chart area is not empty in the character layer");
         break;
       end
 

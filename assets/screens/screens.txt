@@ -84,30 +84,29 @@ source TR_BEST_CAND
 source TR_BATCHES
 source TR_DONE_CANDS
 source TR_LAST_MEAN
-source TOP0_ID
-source TOP0_GATES
-source TOP0_FIT
-source TOP1_ID
-source TOP1_GATES
-source TOP1_FIT
-source TOP2_ID
-source TOP2_GATES
-source TOP2_FIT
-source TOP3_ID
-source TOP3_GATES
-source TOP3_FIT
-source TOP4_ID
-source TOP4_GATES
-source TOP4_FIT
-source TOP5_ID
-source TOP5_GATES
-source TOP5_FIT
-source TOP6_ID
-source TOP6_GATES
-source TOP6_FIT
-source TOP7_ID
-source TOP7_GATES
-source TOP7_FIT
+source TR_PREV_BEST
+source VAL_TOP
+source VAL_TOP_GATES
+source VAL_TOP_W
+source VAL_TOP_CAND
+source CH_SCORE
+source CH_GATES
+source CH_W
+source CH_SURV
+source CH_GEN
+source CH_CAND
+source TR_STALL
+source TR_MUT
+source TEST_SCORE
+source TEST_GATES
+source TEST_W
+source TEST_SURV
+source TR_RESULT
+source AI_KIND
+source AI_RUNID
+source AI_GENS
+source AI_VALW
+source AI_TESTW
 
 # ---- word lists (value 0, 1, 2 ...)
 words ACTION HOLD=3 DOWN=7 UP__=5
@@ -117,6 +116,9 @@ words SIM X1___=2 X2___=2 X4___=2 X16__=2 X64__=2 X256_=2 X1024=2 MAX__=1
 words STAGE ________=3 TRAINING=2 VALIDATE=1 TESTING_=7 EVOLVING=5 COMPLETE=5
 words RUNSTATE LOADING_=3 READY___=0 PLAYING_=5 FINISHED=7 SCORING_=2 NEXT_GEN=1 PAUSED__=4 ________=3
 words WORLD A_=0 B_=0 V1=1 V2=1 V3=1 V4=1 T1=7 T2=7 T3=7 T4=7 T5=7 T6=7 T7=7 T8=7
+words MUT 1/16=0 1/8_=7 1/4_=4
+words RESULT ________=3 MAX_GEN_=1 SOLVED__=5 STOPPED_=7
+words AIKIND DEMO_NET=7 TRAINED_=5
 
 # ---- page MODE
 page MODE 2
@@ -201,12 +203,23 @@ end
 page WATCH 2
 ~1
   AI PLAYING  ACTION
-~28
+~25
+  ........  RUN ....  GENERATIONS ...
+  VALIDATION ./4   FINAL TEST ./8
+~1
 attr
 ~1
 .bbbbbbbbbbbbaaaaaaaaaaaaa
-~28
+~25
+.:bbbbbbbbaaddddaaaaaaddddddddddddaaaa
+.:dddddddddddaddaaadddddddddddadda
+~1
 field 1 21 4 WORD AI_ACTION ACTION
+field 27 2 8 WORD AI_KIND AIKIND
+field 27 16 4 HEX AI_RUNID
+field 27 34 3 DEC AI_GENS
+field 28 13 1 DEC AI_VALW
+field 28 30 1 DEC AI_TESTW
 end
 
 # ---- page WATCHDBG
@@ -214,7 +227,9 @@ page WATCHDBG 1
 ~1
    AI PLAYING
    ACTION
-~54
+~51
+   ........  RUN ....  GENERATIONS ...  VALIDATION ./4  FINAL TEST ./8
+~2
  F0       F1       F2       F3       H0       Y
  F0 NEXT GAP  F1 GAP AFTER  F2 REL SPEED  F3 FRAMES TO GO  (VALUE / 64)
 ~1
@@ -222,7 +237,9 @@ attr
 ~1
 ..bbbbbbbbbbbbb
 ..aaaaaaaaaaaaa
-~54
+~51
+.::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+~2
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 ~1
@@ -233,6 +250,11 @@ field 57 22 4 SDEC AI_F2
 field 57 31 4 SDEC AI_F3
 field 57 40 4 SDEC AI_H0
 field 57 48 7 SDEC AI_Y
+field 54 3 8 WORD AI_KIND AIKIND
+field 54 17 4 HEX AI_RUNID
+field 54 35 3 DEC AI_GENS
+field 54 51 1 DEC AI_VALW
+field 54 67 1 DEC AI_TESTW
 end
 
 # ---- page SETUP
@@ -249,7 +271,7 @@ end
 
 # ---- page TRAIN (the training screen; laid out with 8 lane windows at rows 5-18 and 21-34)
 page TRAIN 1
- TRAIN AI   RUN ID        GENERATION       BATCH  /8   SIM        4/6 SIM SPEED
+ TRAIN AI   RUN ID        GENERATION    /100  BATCH  /8  SIM       4/6 SIM SPEED
  STAGE            RUN            WORLD     SEED        KEY1 BACK TO MENU
  CONFIG          CORALS  SPEED     PLAY STEP        READY   /88
  STEPS/S          EVALUATIONS             WINDOW K = LANE K, ONE SHARED WORLD
@@ -287,30 +309,30 @@ F         T         F         T         F         T         F         T
 C              G    C              G    C              G    C              G
 F         T         F         T         F         T         F         T
 
- THIS GENERATION (ITS OWN WORLDS A+B)     HOW TO READ THE LANES
-  BEST               GATES      C
-  BATCHES  [        ]    /64 PLAYED       EACH WINDOW IS ONE REAL LANE OF
-  LAST GENERATION MEAN SURVIVAL    %      THE SIMULATOR - ALL PLAY ONE WORLD
+ THIS GENERATION (ITS OWN WORLDS A+B)     LEARNING CURVE - SURVIVAL %
+  BEST                G     C             # CHAMPION (VALIDATION)
+  LAST BEST           ON THESE WORLDS     # GEN TOP (VALIDATION)  # TRAIN MEAN
+  PLAYED [        ]   /64  MEAN    %      100
 
- TOP 8 OF THIS GENERATION                 BORDER  CYAN ALIVE   RED DEAD
-     CAND GATES  FITNESS                          GREEN DONE   GREY IDLE
-  1  C
-  2  C                                    C  CANDIDATE NUMBER 0-63
-  3  C                                    G  GATES PASSED (RUNS A+B)
-  4  C                                    F  FITNESS = GATES X 65536
-  5  C                                       + STEPS + WELL CENTRED STEPS
-  6  C                                    T  STEPS OF THIS RUN (UP TO 4095)
-  7  C
-  8  C
-                                          SIM X1 = ONE STEP PER GAME FRAME
- POPULATION FIXED (M10): 8 HAND-SET       FASTER SPEEDS SHOW EVERY N-TH STEP
- CONTROLLERS + 56 RANDOM NETWORKS
+ VALIDATION (FIXED WORLDS V1-V4)
+  GEN TOP             G      /4  C
+  CHAMPION            G      /4    %
+            FROM GENERATION      C
+  STALL     MUTATION RATE                  50
 
+ FINAL TEST (8 UNSEEN WORLDS T1-T8)
+  CHAMPION            G      /8    %
+  RESULT
 
+ STOPS AFTER 100 GENERATIONS, OR WHEN
+ SOLVED (V1-V4 ALL DONE, 10 GENS STABLE)    0
+                                              0          50           100
+ KEY1  STOP - TEST AND KEEP THE CHAMPION                GENERATION
+ WHEN COMPLETE: KEY1 OR ENTER = MENU
  4/6 CHANGE ONLY THE SIMULATION SPEED - THE TRAINED WORLD SPEED STAYS
 
 attr
-abbbbbbbbaaaddddddaaaaaaaaddddddddddabbbaaadddddaaddaaadddacccccaaddddddddddddda
+abbbbbbbbaaaddddddaaaaaaaaddddddddddabbbddddaadddddaaddaadddacccccaddddddddddddd
 adddddaaaaaaaaaaaadddaaaaaaaaaaaadddddaaaaaddddaaaaaaaadddddddddddddddddaaaaaaaa
 addddddaaaaaaaaaaddddddaadddddaaaaadddddddddaaaaaaaadddddaaadddaaaaaaaaaaaaaaaaa
 adddddddaccccccaaadddddddddddaaaaaaaaaaaaadddddddddddddddddddddddddddddddddddaaa
@@ -348,32 +370,32 @@ daaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaa
 daaaaaaaaaaaaaadbbbadaaaaaaaaaaaaaadbbbadaaaaaaaaaaaaaadbbbadaaaaaaaaaaaaaadbbba
 daaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaa
 
-abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaabbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaa
-aaddddaaaaaaaaaaaaaaadddddabbbaadaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aadddddddaadccccccccdaaaaddddddddddaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aadddddddddddddddddddddddddddddacccdaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-abbbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaddddddaaccccccccccaaaeeeeeeeeaaaaaaaaa
-aaaaadddddddddddddddddddaaaaaaaaaaaaaaaaaaaaaaaaaaffffffffffaaagggggggggaaaaaaaa
-aadaadaaaaabbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aadaadaaaaabbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaddddddddddddddddddddddddaaaaaaaaaaaaaa
-aadaadaaaaabbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaddddddddddddddddddddddddddaaaaaaaaaaaa
-aadaadaaaaabbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaddddddddddddddddddddddddddaaaaaaaaaaaa
-aadaadaaaaabbbaaaaaaaaaaaaaaaaaaaaaaaaaaaadddddddddddddddddddddddddddddddaaaaaaa
-aadaadaaaaabbbaaaaaaaaaaaaaaaaaaaaaaaaaaaadddddddddddddddddddddddddddddddddaaaaa
-aadaadaaaaabbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aadaadaaaaabbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddddddddddddddddddddddddddddddddaaaaaa
-addddddddddddddddddddddddddddddddddaaaaaaaddddddddddddddddddddddddddddddddddaaaa
-addddddddddddddddddddddddddddddddaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaa
+aaddddaaaaaaaaaaaaaaaadbbbaadaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaa
+aadddddddddaaaaaaaaaaadddddddddddddddaaaaaccccccccccccccccccccccaaddddddddddddaa
+aaddddddadccccccccdaaadddaaddddacccdaaaaa.333
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaa
+aadddddddaaaaaaaaaaaaadcccaaaddaadaaaaaaa
+aabbbbbbbbaabbbbbbbbaadbbbaabddabbbdaaaaa
+aaaaaaaaaaaadddddddddddddddaaaaaadaaaaaaa
+aadddddaaaaadddddddddddddaaaaaaaaaaaaaaaa.333
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaa
+aaddddddddaaaaaaaaaaaadhhhaahddahhhdaaaaa
+aaddddddaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+addddddddddddddddddddddddddddddddddddaaaa
+addddddddddddddddddddddddddddddddddddddda.333
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadaaaaaaaaaaddaaaaaaaaaaadddaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddddddddddaaaaaaaaaaaaaa
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 addddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddaaaaaaaaaaa
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 field 0 19 4 HEX TR_RUNID
 field 0 37 3 DEC TR_GEN
-field 0 49 1 DEC TR_BATCH
-field 0 59 5 WORD TR_SIM SIM
+field 0 52 1 DEC TR_BATCH
+field 0 61 5 WORD TR_SIM SIM
 field 1 7 8 WORD TR_STAGE STAGE
 field 1 22 8 WORD TR_RUNSTATE RUNSTATE
 field 1 39 2 WORD TR_WORLD WORLD
@@ -433,35 +455,29 @@ field 35 70 4 WORD L7_ACT ACTION
 field 35 76 3 DEC L7_GATES
 field 36 61 8 DEC L7_FIT
 field 36 71 4 DEC L7_STEPS
-field 39 11 8 DEC TR_BEST
-field 39 27 3 DEC TR_BEST_GATES
-field 39 33 2 DEC TR_BEST_CAND
-field 40 12 8 BAR TR_BATCHES
-field 40 23 2 DEC TR_DONE_CANDS
+field 39 12 8 DEC TR_BEST
+field 39 23 3 DEC TR_BEST_GATES
+field 39 29 2 DEC TR_BEST_CAND
+field 40 12 8 DEC TR_PREV_BEST
+field 41 10 8 BAR TR_BATCHES
+field 41 20 2 DEC TR_DONE_CANDS
 field 41 32 3 DECB TR_LAST_MEAN
-field 45 6 2 DEC TOP0_ID
-field 45 11 3 DEC TOP0_GATES
-field 45 16 8 DEC TOP0_FIT
-field 46 6 2 DEC TOP1_ID
-field 46 11 3 DEC TOP1_GATES
-field 46 16 8 DEC TOP1_FIT
-field 47 6 2 DEC TOP2_ID
-field 47 11 3 DEC TOP2_GATES
-field 47 16 8 DEC TOP2_FIT
-field 48 6 2 DEC TOP3_ID
-field 48 11 3 DEC TOP3_GATES
-field 48 16 8 DEC TOP3_FIT
-field 49 6 2 DEC TOP4_ID
-field 49 11 3 DEC TOP4_GATES
-field 49 16 8 DEC TOP4_FIT
-field 50 6 2 DEC TOP5_ID
-field 50 11 3 DEC TOP5_GATES
-field 50 16 8 DEC TOP5_FIT
-field 51 6 2 DEC TOP6_ID
-field 51 11 3 DEC TOP6_GATES
-field 51 16 8 DEC TOP6_FIT
-field 52 6 2 DEC TOP7_ID
-field 52 11 3 DEC TOP7_GATES
-field 52 16 8 DEC TOP7_FIT
+field 44 12 8 DEC VAL_TOP
+field 44 23 3 DEC VAL_TOP_GATES
+field 44 28 1 DEC VAL_TOP_W
+field 44 34 2 DEC VAL_TOP_CAND
+field 45 12 8 DEC CH_SCORE
+field 45 23 3 DEC CH_GATES
+field 45 28 1 DEC CH_W
+field 45 32 3 DECB CH_SURV
+field 46 28 3 DEC CH_GEN
+field 46 34 2 DEC CH_CAND
+field 47 8 2 DEC TR_STALL
+field 47 26 4 WORD TR_MUT MUT
+field 50 12 8 DEC TEST_SCORE
+field 50 23 3 DEC TEST_GATES
+field 50 28 1 DEC TEST_W
+field 50 32 3 DECB TEST_SURV
+field 51 12 8 WORD TR_RESULT RESULT
 end
 
