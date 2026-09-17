@@ -5,7 +5,8 @@
 //
 //   +shots=<frame>,<frame>,...   save the listed frames (no key presses)
 //   +scenario=tour               play through every screen with scripted keys
-//   +scenario=watch              WATCH AI with the demo network (SW1 debug overlay on)
+//   +scenario=watch              the product flow: NO TRAINED AI, training (+gens=<n>), pause,
+//                                TRAINING COMPLETE, WATCH AI with the champion, SW1 overlay
 //   +scenario=train              TRAIN AI (MEDIUM, 2 corals): +sim=<level 0..7> +count=<frames> +gap=<frames>
 //   +difficulty=<0..2>           difficulty chosen in the tour (default 1)
 //   +columns=<1..3>              coral columns chosen in the tour (default 3)
@@ -141,12 +142,18 @@ module tb_render;
     press(KEY_ENTER);
     wait_frames(3);
     capture("tour_10_training.ppm");
+    // KEY1: pause menu; DISCARD RUN goes back to the mode menu
     backN = 1'b0;
     repeat (100) @(negedge clk);
     backN = 1'b1;
     wait_frames(3);
-    capture("tour_11_back_from_training.ppm");
-    if (dut.mode != 0) $display("FAIL: KEY1 did not leave the training screen");
+    capture("tour_11_pause_menu.ppm");
+    press(KEY_DOWN);
+    press(KEY_DOWN);
+    press(KEY_ENTER);
+    wait_frames(3);
+    capture("tour_12_back_from_training.ppm");
+    if (dut.mode != 0) $display("FAIL: DISCARD RUN did not leave the training screen");
   endtask
 
   // TRAIN AI at a given simulation speed: frames of the real lanes
@@ -172,29 +179,48 @@ module tb_render;
     end
   endtask
 
+  // The product flow: nothing trained, NO TRAINED AI, train (MEDIUM, 2 corals,
+  // SIM MAX) for +gens=<n> generations, pause, KEEP THE BEST, TRAINING
+  // COMPLETE, WATCH AI with the champion, SW1 debug overlay, back to the menu.
   task automatic watch();
+    int gens;
+    if (!$value$plusargs("gens=%d", gens)) gens = 4;
     wait_frames(3);
     press(KEY_DOWN);
     press(KEY_DOWN);
-    capture("watch_1_mode_menu.ppm");
-    press(KEY_ENTER);                        // WATCH AI (demo network)
+    capture("watch_1_mode_menu_untrained.ppm");
+    press(KEY_ENTER);                        // WATCH AI: nothing trained yet
+    wait_frames(3);
+    capture("watch_2_no_trained_ai.ppm");
+    press(KEY_ENTER);                        // TRAIN AI
     press(KEY_DOWN);                         // MEDIUM
     press(KEY_ENTER);
     press(KEY_DOWN);                         // 2 corals
     press(KEY_ENTER);
+    force dut.simLevel = 3'd7;
+    wait (dut.trainer.ctrl.gen == gens);
+    press(KEY_ENTER);                        // pause menu
+    wait_frames(3);
+    capture("watch_3_pause_menu.ppm");
+    press(KEY_DOWN);
+    press(KEY_ENTER);                        // KEEP THE BEST
+    wait (dut.trainComplete);
+    wait_frames(3);
+    capture("watch_4_training_complete.ppm");
+    release dut.simLevel;
+    press(KEY_ENTER);                        // WATCH AI
     wait (dut.screen == ST_PLAY);
-    wait_frames(150);
-    capture("watch_2_ai_playing.ppm");
+    wait_frames(40);
+    capture("watch_5_trained_ai_playing.ppm");
     debugSw = 1'b1;
-    wait_frames(60);
-    capture("watch_3_ai_debug.ppm");
-    if (dut.screen != ST_PLAY) $display("FAIL: the demo network crashed within 210 frames");
-    // KEY1 goes back to the mode menu
+    wait_frames(4);
+    capture("watch_6_ai_debug.ppm");
+    debugSw = 1'b0;
     backN = 1'b0;
     repeat (100) @(negedge clk);
     backN = 1'b1;
     wait_frames(3);
-    capture("watch_4_back_to_mode_menu.ppm");
+    capture("watch_7_mode_menu_trained.ppm");
     if (dut.mode != 0) $display("FAIL: KEY1 did not return to the mode menu");
   endtask
 

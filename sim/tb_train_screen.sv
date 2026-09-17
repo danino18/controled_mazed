@@ -10,7 +10,10 @@
 //   - LEDR[8:1] show the live alive mask, HEX5..3 the generation
 //   - Numpad 4 held on the training screen raises the simulation speed and
 //     leaves the world speed unchanged; the game menus do not move
-//   - KEY1 stops training: final test, champion committed; KEY1 again leaves
+//   - KEY1 opens the pause menu (the lanes wait) and closes it again; Enter
+//     opens it too; KEEP THE BEST stops training: final test, committed
+//     champion, the completion sound and the TRAINING COMPLETE page; KEY1 there
+//     goes to the mode menu, which now names the trained AI
 `timescale 1ns / 1ps
 
 module tb_train_screen;
@@ -61,6 +64,13 @@ module tb_train_screen;
     repeat (1000) @(negedge clk);
     key_event(code, 1);
     repeat (1000) @(negedge clk);
+  endtask
+
+  task automatic press_key1();
+    backN = 1'b0;
+    repeat (100) @(negedge clk);
+    backN = 1'b1;
+    repeat (100) @(negedge clk);
   endtask
 
   task automatic wait_frames(input int n);
@@ -210,25 +220,54 @@ module tb_train_screen;
     end
     check_frame("x16 frame");
 
-    // KEY1: stop, final test, keep the champion; then KEY1 leaves the complete screen
+    // KEY1: the pause menu; the lanes wait
     force dut.simLevel = 3'd7;
-    wait (dut.trainer.ctrl.champExists);
-    backN = 1'b0;
-    repeat (100) @(negedge clk);
-    backN = 1'b1;
+    wait (dut.trainer.ctrl.champExists && dut.trainer.lanes.running);
+    press_key1();
+    wait_frames(2);
+    begin
+      logic [11:0] stepBefore;
+      if (dut.mode != 3'd5 || dut.page != PAGE_PAUSE) fail("KEY1 did not open the pause menu");
+      if (cells(22, 32, 15) != "TRAINING PAUSED" || cells(25, 24, 8) != "> RESUME") fail("pause menu text wrong");
+      stepBefore = dut.sPlaySteps;
+      wait_frames(3);
+      if (dut.sPlaySteps != stepBefore || dut.sRunState != RS_PAUSED) fail("the lanes moved while paused");
+      if (cells(1, 22, 8) != "PAUSED  ") fail($sformatf("run state shown as '%s'", cells(1, 22, 8)));
+    end
+    press_key1();                            // KEY1 = resume
+    wait_frames(2);
+    if (dut.mode != 3'd4 || dut.page != PAGE_TRAIN) fail("KEY1 did not resume");
+
+    // Enter: pause menu, KEEP THE BEST: final test, TRAINING COMPLETE, the completion sound
+    press(KEY_ENTER);
+    press(KEY_DOWN);
+    press(KEY_ENTER);
     wait (dut.trainComplete);
+    fork
+      begin : sound_watch
+        wait (dut.sound.playingScore);
+      end
+      begin
+        wait_frames(20);
+        fail("no completion sound");
+      end
+    join_any
+    disable fork;
     wait_frames(2);
-    if (dut.mode != 3'd4 || !dut.aiCommitted) fail("KEY1 did not stop training with a committed champion");
-    if (cells(51, 12, 8) != "STOPPED ") fail($sformatf("result shown as '%s'", cells(51, 12, 8)));
-    $display("INFO: stopped at generation %0d: final test %0d gates, %0d/8 worlds",
+    if (dut.mode != 3'd6 || dut.page != PAGE_DONE || !dut.aiCommitted) fail("no TRAINING COMPLETE page with a committed champion");
+    if (cells(7, 38, 8) != "STOPPED ") fail($sformatf("result shown as '%s'", cells(7, 38, 8)));
+    if (cells(9, 10, 4) != hex_text(dut.sRunId)) fail("DONE page RUN ID wrong");
+    if (cells(14, 36, 1) != dec(dut.sTestW, 1)) fail("DONE page test worlds wrong");
+    if (cells(22, 24, 10) != "> WATCH AI") fail($sformatf("DONE cursor shown as '%s'", cells(22, 24, 10)));
+    $display("INFO: stopped at generation %0d: final test %0d gates, %0d/8 worlds; DONE page shown",
              dut.sGen, dut.sTestScore >> 16, dut.sTestW);
-    backN = 1'b0;
-    repeat (100) @(negedge clk);
-    backN = 1'b1;
+    // KEY1 = MAIN MENU; the AI is kept and named on the mode menu
+    press_key1();
     wait_frames(2);
-    if (dut.mode != 3'd0 || dut.trainer.active || dut.trainer.lanes.running) fail("KEY1 did not leave the complete screen");
+    if (dut.mode != 3'd0 || dut.trainer.active || dut.trainer.lanes.running) fail("KEY1 did not leave TRAINING COMPLETE");
     if (dut.page != PAGE_MODE) fail("mode menu not shown after KEY1");
     if (!dut.aiCommitted) fail("the committed AI was lost when leaving");
+    if (cells(21, 22, 9) != {"RUN  ", hex_text(dut.aiRunId)}) fail($sformatf("mode menu AI line '%s'", cells(21, 22, 9)));
     release dut.simLevel;
 
     $display("INFO: %0d frames of training text checked", frames);

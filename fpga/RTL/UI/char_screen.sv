@@ -56,12 +56,12 @@ module char_screen
       .q      (pRomQ)
   );
 
-  logic [7:0]  fRomAddr;
+  logic [8:0]  fRomAddr;
   logic [42:0] fRomQ;
 
   lpm_rom #(
       .lpm_width             (43),
-      .lpm_widthad           (8),
+      .lpm_widthad           (9),
       .lpm_numwords          (MAX_FIELDS),
       .lpm_file              ("RTL/MIF/fields.mif"),
       .lpm_type              ("LPM_ROM"),
@@ -144,7 +144,7 @@ module char_screen
   logic [12:0] loadWa1;
 
   // current field
-  logic [7:0]  idx;
+  logic [8:0]  idx;
   logic [3:0]  fPage;
   logic [5:0]  fRow;
   logic [6:0]  fCol;
@@ -209,7 +209,8 @@ module char_screen
       FMT_DEC:  cellGlyph = G_ZERO + 6'(digit);
       FMT_DECB: cellGlyph = (!leadingDone && digit == 4'd0 && !isLast) ? G_SPACE : G_ZERO + 6'(digit);
       FMT_SDEC: cellGlyph = (k == 4'd0) ? (neg ? G_MINUS : G_PLUS) : G_ZERO + 6'(digit);
-      FMT_HEX:  cellGlyph = (nibble < 4'd10) ? G_ZERO + 6'(nibble) : G_A + 6'(nibble - 4'd10);
+      FMT_HEX:  cellGlyph = value[31]       ? G_SPACE :                 // bit 31 set: blank field
+                            (nibble < 4'd10) ? G_ZERO + 6'(nibble) : G_A + 6'(nibble - 4'd10);
       FMT_WORD: begin
         cellGlyph = (k < 4'd8) ? word[47 - 6 * k -: 6] : G_SPACE;
         cellAttr  = {fAttr[3], word[50:48]};
@@ -355,8 +356,8 @@ module char_screen
         end
 
         S_F_NEXT: begin
-          idx <= idx + 8'd1;
-          if (idx == 8'(MAX_FIELDS - 1)) begin
+          idx <= idx + 9'd1;
+          if (idx == 9'(MAX_FIELDS - 1)) begin
             ready <= (curPage == page);
             state <= S_IDLE;
           end else begin

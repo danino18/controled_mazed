@@ -8,7 +8,8 @@ module game_system
   import palette_pkg::*, game_params_pkg::*, game_state_pkg::*, ml_pkg::*, ui_pkg::*;
 #(
     parameter int BUTTON_STABLE_CLOCKS = 630_000,   // KEY1 debounce (~20 ms)
-    parameter bit DEMO_NET             = 1'b1       // M9: the hand-set network may be watched
+    parameter bit DEMO_NET             = 1'b0       // 1: WATCH AI may use the hand-set network of M9-M11
+                                                    //    (the product: only a network trained on the FPGA)
 ) (
     input  logic        clk,
     input  logic        resetN,
@@ -112,7 +113,7 @@ module game_system
   logic [2:0] mode;
   logic [1:0] modeCursor;
   logic       aiMode, trainMode, gameKeys, gameVisible, abortGame;
-  logic       trainGo, trainStop, trainAbort, trainScreen, watchAuto, watchLoad;
+  logic       trainGo, trainAgain, trainStop, trainAbort, trainHold, trainScreen, watchAuto, watchLoad;
   logic [3:0] page;
   logic [2:0] screen;
   logic       menuStartGame;   // not exported by game_logic; see below
@@ -161,6 +162,8 @@ module game_system
       .gameVisible  (gameVisible),
       .abortGame    (abortGame),
       .trainGo      (trainGo),
+      .trainAgain   (trainAgain),
+      .trainHold    (trainHold),
       .trainStop    (trainStop),
       .trainAbort   (trainAbort),
       .trainScreen  (trainScreen),
@@ -381,14 +384,15 @@ module game_system
   train_top trainer (
       .clk           (clk),
       .resetN        (resetN),
-      .start         (trainStart || trainGo),
+      .start         (trainStart || trainGo || trainAgain),
       .stop          (trainStop),
       .abort         (trainAbort),
-      .hold          (1'b0),
+      .hold          (trainHold),
       .runIdIn       (runEntropy),
-      .difficultyIn  (trainGo ? remoteDifficulty : difficulty),
-      .columnsIn     (trainGo ? remoteColumns : columnCount),
-      .speedIn       (trainGo ? remoteSpeed : speedLevel),
+      // the menus' world, the JTAG settings, or (TRAIN AGAIN) the trainer's own last world
+      .difficultyIn  (trainGo ? remoteDifficulty : trainAgain ? trainDifficulty : difficulty),
+      .columnsIn     (trainGo ? remoteColumns    : trainAgain ? trainColumns    : columnCount),
+      .speedIn       (trainGo ? remoteSpeed      : trainAgain ? trainSpeed      : speedLevel),
       .simLevel      (simLevel),
       .frameTick     (startOfFrame),
       .active        (trainActive),
@@ -500,10 +504,25 @@ module game_system
   end
 
   // ---------------------------------------------------------------- sound
+  // Training plays no sound; when it completes, the score jingle plays three
+  // times (queued by sound_engine). SW0 mutes it like every other sound.
+  logic       completeD;
+  logic [2:0] chime;
+
+  always_ff @(posedge clk or negedge resetN) begin
+    if (!resetN) begin
+      completeD <= 1'b0;
+      chime     <= '0;
+    end else begin
+      completeD <= trainComplete;
+      chime     <= {chime[1:0], trainComplete && !completeD};
+    end
+  end
+
   sound_engine sound (
       .clk         (clk),
       .resetN      (resetN),
-      .scoreTrigger(scoreEvent),
+      .scoreTrigger(scoreEvent || (|chime)),
       .failTrigger (failEvent),
       .mute        (muteSw),
       .audioSample (audioSample),
@@ -681,6 +700,13 @@ module game_system
     uiSources[SRC_AI_GENS]       = aiCommitted ? 32'(aiGen) : 32'd0;
     uiSources[SRC_AI_VALW]       = aiCommitted ? 32'(aiValW) : 32'd0;
     uiSources[SRC_AI_TESTW]      = aiCommitted ? 32'(aiTestW) : 32'd0;
+    uiSources[SRC_AI_STATUS]     = aiCommitted ? 32'd1 : 32'd0;
+    uiSources[SRC_AI_RUNB]       = aiCommitted ? 32'(aiRunId) : 32'h8000_0000;   // bit 31: blank
+
+    // pause and TRAINING COMPLETE menus
+    uiSources[SRC_PAUSE_CURSOR]  = 32'(modeCursor);
+    uiSources[SRC_DONE_CURSOR]   = 32'(modeCursor);
+    uiSources[SRC_TEST_STATE]    = (sStage == STG_COMPLETE && !sTestValid) ? 32'd1 : 32'd0;
   end
 
   // The text writer starts SNAP_DELAY clocks after the frame starts, after the

@@ -107,6 +107,11 @@ source AI_RUNID
 source AI_GENS
 source AI_VALW
 source AI_TESTW
+source PAUSE_CURSOR
+source DONE_CURSOR
+source TEST_STATE
+source AI_STATUS
+source AI_RUNB
 
 # ---- word lists (value 0, 1, 2 ...)
 words ACTION HOLD=3 DOWN=7 UP__=5
@@ -119,6 +124,8 @@ words WORLD A_=0 B_=0 V1=1 V2=1 V3=1 V4=1 T1=7 T2=7 T3=7 T4=7 T5=7 T6=7 T7=7 T8=
 words MUT 1/16=0 1/8_=7 1/4_=4
 words RESULT ________=3 MAX_GEN_=1 SOLVED__=5 STOPPED_=7
 words AIKIND DEMO_NET=7 TRAINED_=5
+words TESTSTATE ________=3 SKIPPED_=7
+words AISTATE NONE=3 RUN_=5
 
 # ---- page MODE
 page MODE 2
@@ -133,7 +140,7 @@ page MODE 2
 ~2
                WATCH AI
 ~5
-             DEMO AI NETWORK LOADED
+          TRAINED AI  .... ....
 ~2
       8/2 SELECT    ENTER CONFIRM
        KEY1 BACK FROM ANY SCREEN
@@ -154,7 +161,7 @@ attr
 ............dddddddddddddddddddddd
 ............dddddddddddddddddddddd
 ~4
-............dddddddddddddddddddddddd
+........dddddddddddddddddddaaaad
 ~2
 .....dddddddddddddddddddddddddddddd
 .....dddddddddddddddddddddddddddddd
@@ -162,6 +169,8 @@ attr
 field 9 13 12 CURSOR MODE_CURSOR 0
 field 12 13 12 CURSOR MODE_CURSOR 1
 field 15 13 12 CURSOR MODE_CURSOR 2
+field 21 22 4 WORD AI_STATUS AISTATE
+field 21 27 4 HEX AI_RUNB
 end
 
 # ---- page NOAI
@@ -271,8 +280,8 @@ end
 
 # ---- page TRAIN (the training screen; laid out with 8 lane windows at rows 5-18 and 21-34)
 page TRAIN 1
- TRAIN AI   RUN ID        GENERATION    /100  BATCH  /8  SIM       4/6 SIM SPEED
- STAGE            RUN            WORLD     SEED        KEY1 BACK TO MENU
+ TRAIN AI   RUN ID        GENERATION    /100  BATCH  /8  SIM       4/6 SIM
+ STAGE            RUN            WORLD     SEED        KEY1/ENTER PAUSE
  CONFIG          CORALS  SPEED     PLAY STEP        READY   /88
  STEPS/S          EVALUATIONS             WINDOW K = LANE K, ONE SHARED WORLD
 
@@ -327,13 +336,13 @@ F         T         F         T         F         T         F         T
  STOPS AFTER 100 GENERATIONS, OR WHEN
  SOLVED (V1-V4 ALL DONE, 10 GENS STABLE)    0
                                               0          50           100
- KEY1  STOP - TEST AND KEEP THE CHAMPION                GENERATION
- WHEN COMPLETE: KEY1 OR ENTER = MENU
+ KEY1 OR ENTER  PAUSE MENU (RESUME,                     GENERATION
+ STOP AND KEEP THE BEST, DISCARD)
  4/6 CHANGE ONLY THE SIMULATION SPEED - THE TRAINED WORLD SPEED STAYS
 
 attr
-abbbbbbbbaaaddddddaaaaaaaaddddddddddabbbddddaadddddaaddaadddacccccaddddddddddddd
-adddddaaaaaaaaaaaadddaaaaaaaaaaaadddddaaaaaddddaaaaaaaadddddddddddddddddaaaaaaaa
+abbbbbbbbaaaddddddaaaaaaaaddddddddddabbbddddaadddddaaddaadddacccccadddddddaaaaaa
+adddddaaaaaaaaaaaadddaaaaaaaaaaaadddddaaaaaddddaaaaaaaaddddddddddddddddaaaaaaaaa
 addddddaaaaaaaaaaddddddaadddddaaaaadddddddddaaaaaaaadddddaaadddaaaaaaaaaaaaaaaaa
 adddddddaccccccaaadddddddddddaaaaaaaaaaaaadddddddddddddddddddddddddddddddddddaaa
 
@@ -479,5 +488,422 @@ field 50 23 3 DEC TEST_GATES
 field 50 28 1 DEC TEST_W
 field 50 32 3 DECB TEST_SURV
 field 51 12 8 WORD TR_RESULT RESULT
+end
+page PAUSE 1
+ TRAIN AI   RUN ID        GENERATION    /100  BATCH  /8  SIM       4/6 SIM
+ STAGE            RUN            WORLD     SEED        KEY1/ENTER PAUSE
+ CONFIG          CORALS  SPEED     PLAY STEP        READY   /88
+ STEPS/S          EVALUATIONS             WINDOW K = LANE K, ONE SHARED WORLD
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+C              G    C              G    C              G    C              G
+F         T         F         T         F         T         F         T
+
+                                TRAINING PAUSED
+                     THE LANES WAIT BETWEEN TWO STEPS
+
+                          RESUME
+
+                          KEEP THE BEST  STOP, FINAL TEST, KEEP
+
+                          DISCARD RUN    STOP, KEEP THE OLD AI
+
+
+                   8/2 SELECT   ENTER CONFIRM   KEY1 RESUME
+
+
+C              G    C              G    C              G    C              G
+F         T         F         T         F         T         F         T
+
+ THIS GENERATION (ITS OWN WORLDS A+B)     LEARNING CURVE - SURVIVAL %
+  BEST                G     C             # CHAMPION (VALIDATION)
+  LAST BEST           ON THESE WORLDS     # GEN TOP (VALIDATION)  # TRAIN MEAN
+  PLAYED [        ]   /64  MEAN    %      100
+
+ VALIDATION (FIXED WORLDS V1-V4)
+  GEN TOP             G      /4  C
+  CHAMPION            G      /4    %
+            FROM GENERATION      C
+  STALL     MUTATION RATE                  50
+
+ FINAL TEST (8 UNSEEN WORLDS T1-T8)
+  CHAMPION            G      /8    %
+  RESULT
+
+ STOPS AFTER 100 GENERATIONS, OR WHEN
+ SOLVED (V1-V4 ALL DONE, 10 GENS STABLE)    0
+                                              0          50           100
+ KEY1 OR ENTER  PAUSE MENU (RESUME,                     GENERATION
+ STOP AND KEEP THE BEST, DISCARD)
+ 4/6 CHANGE ONLY THE SIMULATION SPEED - THE TRAINED WORLD SPEED STAYS
+
+attr
+abbbbbbbbaaaddddddaaaaaaaaddddddddddabbbddddaadddddaaddaadddacccccadddddddaaaaaa
+adddddaaaaaaaaaaaadddaaaaaaaaaaaadddddaaaaaddddaaaaaaaaddddddddddddddddaaaaaaaaa
+addddddaaaaaaaaaaddddddaadddddaaaaadddddddddaaaaaaaadddddaaadddaaaaaaaaaaaaaaaaa
+adddddddaccccccaaadddddddddddaaaaaaaaaaaaadddddddddddddddddddddddddddddddddddaaa
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+daaaaaaaaaaaaaadbbbadaaaaaaaaaaaaaadbbbadaaaaaaaaaaaaaadbbbadaaaaaaaaaaaaaadbbba
+daaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaa
+................aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+................aaaaaaaaaaaaaaaabbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaa
+................aaaaaddddddddddddddddddddddddddddddddaaaaaaaaaaa
+................aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+................aaaaaaaadddddddddddddddaaaaaaaaaaaaaaaaaaaaaaaaa
+................aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+................aaaaaaaadddddddddddddddaadddddddddddddddddddddda
+................aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+................aaaaaaaadddddddddddddddaadddddddddddddddddddddaa
+................aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+................aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+................aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+................aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+daaaaaaaaaaaaaadbbbadaaaaaaaaaaaaaadbbbadaaaaaaaaaaaaaadbbbadaaaaaaaaaaaaaadbbba
+daaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaa
+
+abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaa
+aaddddaaaaaaaaaaaaaaaadbbbaadaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaa
+aadddddddddaaaaaaaaaaadddddddddddddddaaaaaccccccccccccccccccccccaaddddddddddddaa
+aaddddddadccccccccdaaadddaaddddacccdaaaaa.333
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaa
+aadddddddaaaaaaaaaaaaadcccaaaddaadaaaaaaa
+aabbbbbbbbaabbbbbbbbaadbbbaabddabbbdaaaaa
+aaaaaaaaaaaadddddddddddddddaaaaaadaaaaaaa
+aadddddaaaaadddddddddddddaaaaaaaaaaaaaaaa.333
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaa
+aaddddddddaaaaaaaaaaaadhhhaahddahhhdaaaaa
+aaddddddaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+addddddddddddddddddddddddddddddddddddaaaa
+addddddddddddddddddddddddddddddddddddddda.333
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadaaaaaaaaaaddaaaaaaaaaaadddaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddddddddddaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+addddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+field 0 19 4 HEX TR_RUNID
+field 0 37 3 DEC TR_GEN
+field 0 52 1 DEC TR_BATCH
+field 0 61 5 WORD TR_SIM SIM
+field 1 7 8 WORD TR_STAGE STAGE
+field 1 22 8 WORD TR_RUNSTATE RUNSTATE
+field 1 39 2 WORD TR_WORLD WORLD
+field 1 48 4 HEX TR_SEED
+field 2 8 6 WORD TRAIN_DIFF DIFF
+field 2 15 1 DEC TRAIN_CORALS
+field 2 31 1 DEC TRAIN_SPEED
+field 2 45 4 DEC TR_STEP
+field 2 58 2 DEC TR_READY
+field 3 9 6 DECB TR_SPS
+field 3 30 7 DECB TR_EVALS
+field 19 1 2 DEC L0_CAND
+field 19 4 5 WORD L0_STATE LSTATE
+field 19 10 4 WORD L0_ACT ACTION
+field 19 16 3 DEC L0_GATES
+field 20 1 8 DEC L0_FIT
+field 20 11 4 DEC L0_STEPS
+field 19 21 2 DEC L1_CAND
+field 19 24 5 WORD L1_STATE LSTATE
+field 19 30 4 WORD L1_ACT ACTION
+field 19 36 3 DEC L1_GATES
+field 20 21 8 DEC L1_FIT
+field 20 31 4 DEC L1_STEPS
+field 19 41 2 DEC L2_CAND
+field 19 44 5 WORD L2_STATE LSTATE
+field 19 50 4 WORD L2_ACT ACTION
+field 19 56 3 DEC L2_GATES
+field 20 41 8 DEC L2_FIT
+field 20 51 4 DEC L2_STEPS
+field 19 61 2 DEC L3_CAND
+field 19 64 5 WORD L3_STATE LSTATE
+field 19 70 4 WORD L3_ACT ACTION
+field 19 76 3 DEC L3_GATES
+field 20 61 8 DEC L3_FIT
+field 20 71 4 DEC L3_STEPS
+field 35 1 2 DEC L4_CAND
+field 35 4 5 WORD L4_STATE LSTATE
+field 35 10 4 WORD L4_ACT ACTION
+field 35 16 3 DEC L4_GATES
+field 36 1 8 DEC L4_FIT
+field 36 11 4 DEC L4_STEPS
+field 35 21 2 DEC L5_CAND
+field 35 24 5 WORD L5_STATE LSTATE
+field 35 30 4 WORD L5_ACT ACTION
+field 35 36 3 DEC L5_GATES
+field 36 21 8 DEC L5_FIT
+field 36 31 4 DEC L5_STEPS
+field 35 41 2 DEC L6_CAND
+field 35 44 5 WORD L6_STATE LSTATE
+field 35 50 4 WORD L6_ACT ACTION
+field 35 56 3 DEC L6_GATES
+field 36 41 8 DEC L6_FIT
+field 36 51 4 DEC L6_STEPS
+field 35 61 2 DEC L7_CAND
+field 35 64 5 WORD L7_STATE LSTATE
+field 35 70 4 WORD L7_ACT ACTION
+field 35 76 3 DEC L7_GATES
+field 36 61 8 DEC L7_FIT
+field 36 71 4 DEC L7_STEPS
+field 39 12 8 DEC TR_BEST
+field 39 23 3 DEC TR_BEST_GATES
+field 39 29 2 DEC TR_BEST_CAND
+field 40 12 8 DEC TR_PREV_BEST
+field 41 10 8 BAR TR_BATCHES
+field 41 20 2 DEC TR_DONE_CANDS
+field 41 32 3 DECB TR_LAST_MEAN
+field 44 12 8 DEC VAL_TOP
+field 44 23 3 DEC VAL_TOP_GATES
+field 44 28 1 DEC VAL_TOP_W
+field 44 34 2 DEC VAL_TOP_CAND
+field 45 12 8 DEC CH_SCORE
+field 45 23 3 DEC CH_GATES
+field 45 28 1 DEC CH_W
+field 45 32 3 DECB CH_SURV
+field 46 28 3 DEC CH_GEN
+field 46 34 2 DEC CH_CAND
+field 47 8 2 DEC TR_STALL
+field 47 26 4 WORD TR_MUT MUT
+field 50 12 8 DEC TEST_SCORE
+field 50 23 3 DEC TEST_GATES
+field 50 28 1 DEC TEST_W
+field 50 32 3 DECB TEST_SURV
+field 51 12 8 WORD TR_RESULT RESULT
+field 25 24 15 CURSOR PAUSE_CURSOR 0
+field 27 24 15 CURSOR PAUSE_CURSOR 1
+field 29 24 15 CURSOR PAUSE_CURSOR 2
+end
+page DONE 1
+ TRAIN AI   RUN ID        GENERATION    /100  BATCH  /8  SIM       4/6 SIM
+ STAGE            RUN            WORLD     SEED        KEY1/ENTER PAUSE
+ CONFIG          CORALS  SPEED     PLAY STEP        READY   /88
+ STEPS/S          EVALUATIONS             WINDOW K = LANE K, ONE SHARED WORLD
+
+
+                               TRAINING COMPLETE
+                               RESULT
+
+      RUN        GENERATIONS       WORLD          CORALS  SPEED
+
+      CHAMPION: GENERATION      CANDIDATE
+
+      VALIDATION (4 FIXED WORLDS)    /4 WORLDS      GATES     % SURVIVAL
+      FINAL TEST (8 UNSEEN WORLDS)   /8 WORLDS      GATES     % SURVIVAL
+
+
+      THE CHAMPION IS NOW THE WATCH AI. IT STAYS UNTIL A NEW
+      TRAINING KEEPS ITS OWN CHAMPION OR THE FPGA IS RECONFIGURED.
+      KEY0 DOES NOT ERASE IT.
+
+
+                          WATCH AI       THE CHAMPION PLAYS THE GAME
+
+                          TRAIN AGAIN    SAME WORLD, NEW RUN
+
+                          MAIN MENU
+
+
+
+                 8/2 SELECT    ENTER CONFIRM    KEY1 MAIN MENU
+
+
+
+
+C              G    C              G    C              G    C              G
+F         T         F         T         F         T         F         T
+
+ THIS GENERATION (ITS OWN WORLDS A+B)     LEARNING CURVE - SURVIVAL %
+  BEST                G     C             # CHAMPION (VALIDATION)
+  LAST BEST           ON THESE WORLDS     # GEN TOP (VALIDATION)  # TRAIN MEAN
+  PLAYED [        ]   /64  MEAN    %      100
+
+ VALIDATION (FIXED WORLDS V1-V4)
+  GEN TOP             G      /4  C
+  CHAMPION            G      /4    %
+            FROM GENERATION      C
+  STALL     MUTATION RATE                  50
+
+ FINAL TEST (8 UNSEEN WORLDS T1-T8)
+  CHAMPION            G      /8    %
+  RESULT
+
+ STOPS AFTER 100 GENERATIONS, OR WHEN
+ SOLVED (V1-V4 ALL DONE, 10 GENS STABLE)    0
+                                              0          50           100
+ KEY1 OR ENTER  PAUSE MENU (RESUME,                     GENERATION
+ STOP AND KEEP THE BEST, DISCARD)
+ 4/6 CHANGE ONLY THE SIMULATION SPEED - THE TRAINED WORLD SPEED STAYS
+
+attr
+abbbbbbbbaaaddddddaaaaaaaaddddddddddabbbddddaadddddaaddaadddacccccadddddddaaaaaa
+adddddaaaaaaaaaaaadddaaaaaaaaaaaadddddaaaaaddddaaaaaaaaddddddddddddddddaaaaaaaaa
+addddddaaaaaaaaaaddddddaadddddaaaaadddddddddaaaaaaaadddddaaadddaaaaaaaaaaaaaaaaa
+adddddddaccccccaaadddddddddddaaaaaaaaaaaaadddddddddddddddddddddddddddddddddddaaa
+
+....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaaaaaaaaaddddddaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aadddaaaaaaaadddddddddddaaaaaaadddddaaaaaaaaaaddddddaadddddaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aaddddddddddddddddddddabbbaadddddddddabbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aadddddddddddddddddddddddddddaaabdddddddddaabbbadddddaabbbddddddddddaaaa
+....aaddddddddddddddddddddddddddddaahdddddddddaahhhadddddaahhhddddddddddaaaa
+....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbba
+daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaadddddddddddddddaadddddddddddddddddddddddddddaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaadddddddddddddddaadddddddddddddddddddaaaaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaadddddddddddddddaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+....aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+daaaaaaaaaaaaaadbbbadaaaaaaaaaaaaaadbbbadaaaaaaaaaaaaaadbbbadaaaaaaaaaaaaaadbbba
+daaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaadaaaaaaaaa
+
+abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaa
+aaddddaaaaaaaaaaaaaaaadbbbaadaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaa
+aadddddddddaaaaaaaaaaadddddddddddddddaaaaaccccccccccccccccccccccaaddddddddddddaa
+aaddddddadccccccccdaaadddaaddddacccdaaaaa.333
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaa
+aadddddddaaaaaaaaaaaaadcccaaaddaadaaaaaaa
+aabbbbbbbbaabbbbbbbbaadbbbaabddabbbdaaaaa
+aaaaaaaaaaaadddddddddddddddaaaaaadaaaaaaa
+aadddddaaaaadddddddddddddaaaaaaaaaaaaaaaa.333
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaa
+aaddddddddaaaaaaaaaaaadhhhaahddahhhdaaaaa
+aaddddddaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+addddddddddddddddddddddddddddddddddddaaaa
+addddddddddddddddddddddddddddddddddddddda.333
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadaaaaaaaaaaddaaaaaaaaaaadddaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaddddddddddaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+addddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+field 0 19 4 HEX TR_RUNID
+field 0 37 3 DEC TR_GEN
+field 0 52 1 DEC TR_BATCH
+field 0 61 5 WORD TR_SIM SIM
+field 1 7 8 WORD TR_STAGE STAGE
+field 1 22 8 WORD TR_RUNSTATE RUNSTATE
+field 1 39 2 WORD TR_WORLD WORLD
+field 1 48 4 HEX TR_SEED
+field 2 8 6 WORD TRAIN_DIFF DIFF
+field 2 15 1 DEC TRAIN_CORALS
+field 2 31 1 DEC TRAIN_SPEED
+field 2 45 4 DEC TR_STEP
+field 2 58 2 DEC TR_READY
+field 3 9 6 DECB TR_SPS
+field 3 30 7 DECB TR_EVALS
+field 35 1 2 DEC L4_CAND
+field 35 4 5 WORD L4_STATE LSTATE
+field 35 10 4 WORD L4_ACT ACTION
+field 35 16 3 DEC L4_GATES
+field 36 1 8 DEC L4_FIT
+field 36 11 4 DEC L4_STEPS
+field 35 21 2 DEC L5_CAND
+field 35 24 5 WORD L5_STATE LSTATE
+field 35 30 4 WORD L5_ACT ACTION
+field 35 36 3 DEC L5_GATES
+field 36 21 8 DEC L5_FIT
+field 36 31 4 DEC L5_STEPS
+field 35 41 2 DEC L6_CAND
+field 35 44 5 WORD L6_STATE LSTATE
+field 35 50 4 WORD L6_ACT ACTION
+field 35 56 3 DEC L6_GATES
+field 36 41 8 DEC L6_FIT
+field 36 51 4 DEC L6_STEPS
+field 35 61 2 DEC L7_CAND
+field 35 64 5 WORD L7_STATE LSTATE
+field 35 70 4 WORD L7_ACT ACTION
+field 35 76 3 DEC L7_GATES
+field 36 61 8 DEC L7_FIT
+field 36 71 4 DEC L7_STEPS
+field 39 12 8 DEC TR_BEST
+field 39 23 3 DEC TR_BEST_GATES
+field 39 29 2 DEC TR_BEST_CAND
+field 40 12 8 DEC TR_PREV_BEST
+field 41 10 8 BAR TR_BATCHES
+field 41 20 2 DEC TR_DONE_CANDS
+field 41 32 3 DECB TR_LAST_MEAN
+field 44 12 8 DEC VAL_TOP
+field 44 23 3 DEC VAL_TOP_GATES
+field 44 28 1 DEC VAL_TOP_W
+field 44 34 2 DEC VAL_TOP_CAND
+field 45 12 8 DEC CH_SCORE
+field 45 23 3 DEC CH_GATES
+field 45 28 1 DEC CH_W
+field 45 32 3 DECB CH_SURV
+field 46 28 3 DEC CH_GEN
+field 46 34 2 DEC CH_CAND
+field 47 8 2 DEC TR_STALL
+field 47 26 4 WORD TR_MUT MUT
+field 50 12 8 DEC TEST_SCORE
+field 50 23 3 DEC TEST_GATES
+field 50 28 1 DEC TEST_W
+field 50 32 3 DECB TEST_SURV
+field 51 12 8 WORD TR_RESULT RESULT
+field 7 38 8 WORD TR_RESULT RESULT
+field 9 10 4 HEX TR_RUNID
+field 9 29 3 DEC TR_GEN
+field 9 41 6 WORD TRAIN_DIFF DIFF
+field 9 48 1 DEC TRAIN_CORALS
+field 9 64 1 DEC TRAIN_SPEED
+field 11 27 3 DEC CH_GEN
+field 11 42 2 DEC CH_CAND
+field 13 36 1 DEC CH_W
+field 13 48 3 DEC CH_GATES
+field 13 59 3 DECB CH_SURV
+field 14 36 1 DEC TEST_W
+field 14 48 3 DEC TEST_GATES
+field 14 59 3 DECB TEST_SURV
+field 15 36 8 WORD TEST_STATE TESTSTATE
+field 22 24 15 CURSOR DONE_CURSOR 0
+field 24 24 15 CURSOR DONE_CURSOR 1
+field 26 24 15 CURSOR DONE_CURSOR 2
 end
 

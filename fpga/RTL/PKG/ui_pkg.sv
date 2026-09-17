@@ -4,12 +4,12 @@
 package ui_pkg;
 
   localparam int PAGE_CELLS  = 4800;
-  localparam int NUM_PAGES   = 6;
-  localparam int PAGE_WORDS  = 28800;
-  localparam int MAX_FIELDS  = 256;
-  localparam int NUM_FIELDS  = 111;
+  localparam int NUM_PAGES   = 8;
+  localparam int PAGE_WORDS  = 38400;
+  localparam int MAX_FIELDS  = 512;
+  localparam int NUM_FIELDS  = 284;
   localparam int MAX_WORDS   = 128;
-  localparam int NUM_SOURCES = 102;
+  localparam int NUM_SOURCES = 107;
 
   localparam logic [3:0] PAGE_NONE = 4'd0;
   localparam logic [3:0] PAGE_MODE = 4'd1;   // scale 2
@@ -18,6 +18,8 @@ package ui_pkg;
   localparam logic [3:0] PAGE_WATCHDBG = 4'd4;   // scale 1
   localparam logic [3:0] PAGE_SETUP = 4'd5;   // scale 2
   localparam logic [3:0] PAGE_TRAIN = 4'd6;   // scale 1
+  localparam logic [3:0] PAGE_PAUSE = 4'd7;   // scale 1
+  localparam logic [3:0] PAGE_DONE = 4'd8;   // scale 1
   localparam logic [15:0] PAGE_SCALE2 = 16'b0000000000101110;   // bit p = page p uses 16x16 cells
 
   localparam int SRC_MODE_CURSOR = 0;
@@ -122,6 +124,11 @@ package ui_pkg;
   localparam int SRC_AI_GENS = 99;
   localparam int SRC_AI_VALW = 100;
   localparam int SRC_AI_TESTW = 101;
+  localparam int SRC_PAUSE_CURSOR = 102;
+  localparam int SRC_DONE_CURSOR = 103;
+  localparam int SRC_TEST_STATE = 104;
+  localparam int SRC_AI_STATUS = 105;
+  localparam int SRC_AI_RUNB = 106;
 
   localparam logic [2:0] FMT_DEC    = 3'd0;
   localparam logic [2:0] FMT_DECB   = 3'd1;

@@ -553,7 +553,7 @@ module train_ctrl
       if (stop && state != S_IDLE && state != S_COMPLETE && state != S_WATCH_COPY) stopReq <= 1'b1;
 
       case (state)
-        S_IDLE: begin
+        S_IDLE, S_COMPLETE: begin         // COMPLETE: TRAIN AGAIN starts a new run directly
           if (start) begin
             runId         <= runIdIn;
             seedLoad      <= 1'b1;
@@ -906,8 +906,6 @@ module train_ctrl
             end
           end
         end
-
-        S_COMPLETE: ;                     // until the user leaves (abort)
 
         default: state <= S_IDLE;
       endcase

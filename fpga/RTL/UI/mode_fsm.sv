@@ -2,17 +2,18 @@
 //
 //   MODE_MENU --HUMAN--> GAME (keyboard steers; game_fsm menus, play, game over)
 //             --TRAIN--> SETUP (game_fsm menus choose the world) --Enter--> TRAIN
-//             --WATCH--> GAME with the AI steering:
-//                          a trained AI starts at once with its training settings;
-//                          otherwise the demo network (if built in) goes through
-//                          the game menus; otherwise NO_AI
+//             --WATCH--> GAME with the trained AI (it starts at once in its
+//                        training world), or NO_AI if nothing has been trained
 //             --JTAG start (train_probe)--> TRAIN
-//   NO_AI     --TRAIN AI--> SETUP,  --MAIN MENU--> MODE_MENU
+//   NO_AI     --TRAIN AI--> SETUP,  --MAIN MENU / KEY1--> MODE_MENU
 //   GAME      --MAIN MENU on GAME OVER, or KEY1--> MODE_MENU
 //   SETUP     --KEY1--> MODE_MENU
-//   TRAIN     KEY1: stop training, test and keep the champion (trainStop);
-//             when training is complete, KEY1 or Enter --> MODE_MENU;
-//             if the trainer stops without a champion --> MODE_MENU
+//   TRAIN     --KEY1 or Enter--> PAUSE;  training complete --> DONE;
+//             the trainer went idle without a champion --> MODE_MENU
+//   PAUSE     (the trainer holds) RESUME / KEEP THE BEST (stop, final test,
+//             commit) / DISCARD RUN (the old AI stays); KEY1 = RESUME
+//   DONE      WATCH AI / TRAIN AGAIN (same world, new RUN ID) / MAIN MENU;
+//             KEY1 = MAIN MENU
 //
 // The key pulses given to this module are the raw ones; game_system routes the
 // same keys to game_fsm only while gameKeys is high, so one press is never
@@ -36,18 +37,20 @@ module mode_fsm
     input  logic       trainActive,   // the trainer is running (or complete)
     input  logic       trainComplete, // the trainer has finished and committed its champion
     input  logic       remoteStart,   // JTAG: start training (from the mode menu)
-    input  logic       remoteStop,    // JTAG: same as KEY1 on the training screen
-    input  logic       remoteExit,    // JTAG: same as Enter on the training screen
+    input  logic       remoteStop,    // JTAG: stop training and keep the champion
+    input  logic       remoteExit,    // JTAG: leave TRAINING COMPLETE
     output logic [2:0] mode,
-    output logic [1:0] cursor,        // selected entry of the MODE / NO_AI menu
+    output logic [1:0] cursor,        // selected entry of the current menu
     output logic       aiMode,        // the AI steers the game
     output logic       trainMode,     // game_fsm's menus choose the training world
     output logic       gameKeys,      // keys reach game_fsm and the maze
     output logic       gameVisible,   // coral, game text and panels are drawn
     output logic       abortGame,     // one clock: game_fsm back to its first menu
     output logic       trainGo,       // one clock: start the trainer with the JTAG settings
+    output logic       trainAgain,    // one clock: start the trainer again with its last settings
     output logic       trainStop,     // one clock: stop training, keep the champion
     output logic       trainAbort,    // one clock: trainer back to idle
+    output logic       trainHold,     // the trainer pauses
     output logic       trainScreen,   // the training screen is shown (Numpad 4/6 = simulation speed)
     output logic       watchAuto,     // start the trained AI's game (game_fsm autoStart)
     output logic       watchLoad,     // one clock: load the trained world speed
@@ -59,17 +62,29 @@ module mode_fsm
   localparam logic [2:0] MD_GAME      = 3'd2;
   localparam logic [2:0] MD_SETUP     = 3'd3;
   localparam logic [2:0] MD_TRAIN     = 3'd4;
+  localparam logic [2:0] MD_PAUSE     = 3'd5;
+  localparam logic [2:0] MD_DONE      = 3'd6;
 
   localparam logic [1:0] ITEM_HUMAN = 2'd0;
   localparam logic [1:0] ITEM_TRAIN = 2'd1;
   localparam logic [1:0] ITEM_WATCH = 2'd2;
 
+  // pause and done menus
+  localparam logic [1:0] ITEM_RESUME  = 2'd0;
+  localparam logic [1:0] ITEM_KEEP    = 2'd1;
+  localparam logic [1:0] ITEM_DISCARD = 2'd2;
+  localparam logic [1:0] ITEM_DONE_WATCH = 2'd0;
+  localparam logic [1:0] ITEM_AGAIN      = 2'd1;
+  localparam logic [1:0] ITEM_MAIN       = 2'd2;
+
   logic [1:0] cursorMax;
-  logic       gameMenu;
+  logic       gameMenu, menuMode;
   logic       trainSeen;      // the trainer has been seen running since TRAIN was entered
+  logic       againGuard;     // TRAIN AGAIN was just requested: ignore the old COMPLETE for a clock
 
   assign cursorMax = (mode == MD_NO_AI) ? 2'd1 : 2'd2;
   assign gameMenu  = (screen == ST_MENU_DIFF) || (screen == ST_MENU_OBST);
+  assign menuMode  = (mode == MD_MODE_MENU) || (mode == MD_NO_AI) || (mode == MD_PAUSE) || (mode == MD_DONE);
 
   always_ff @(posedge clk or negedge resetN) begin
     if (!resetN) begin
@@ -78,19 +93,23 @@ module mode_fsm
       aiMode     <= 1'b0;
       abortGame  <= 1'b0;
       trainGo    <= 1'b0;
+      trainAgain <= 1'b0;
       trainStop  <= 1'b0;
       trainAbort <= 1'b0;
       trainSeen  <= 1'b0;
+      againGuard <= 1'b0;
       watchAuto  <= 1'b0;
       watchLoad  <= 1'b0;
     end else begin
       abortGame  <= 1'b0;
       trainGo    <= 1'b0;
+      trainAgain <= 1'b0;
       trainStop  <= 1'b0;
       trainAbort <= 1'b0;
       watchLoad  <= 1'b0;
+      againGuard <= 1'b0;
 
-      if (mode == MD_MODE_MENU || mode == MD_NO_AI) begin
+      if (menuMode) begin
         if (upPulse && cursor != 2'd0)             cursor <= cursor - 2'd1;
         else if (downPulse && cursor != cursorMax) cursor <= cursor + 2'd1;
       end
@@ -100,7 +119,6 @@ module mode_fsm
           if (remoteStart) begin
             trainGo   <= 1'b1;
             trainSeen <= 1'b0;
-            cursor    <= ITEM_TRAIN;
             mode      <= MD_TRAIN;
           end else if (enterPulse) begin
             case (cursor)
@@ -169,18 +187,77 @@ module mode_fsm
         end
 
         MD_TRAIN: begin
-          if (trainActive) trainSeen <= 1'b1;
-          if (trainComplete) begin
-            if (backPulse || enterPulse || remoteStop || remoteExit) begin
-              trainAbort <= 1'b1;
-              cursor     <= ITEM_WATCH;
-              mode       <= MD_MODE_MENU;
-            end
+          if (trainActive && !trainComplete) trainSeen <= 1'b1;
+          if (againGuard) begin
+            // the trainer leaves COMPLETE on this clock
+          end else if (trainComplete) begin
+            cursor <= ITEM_DONE_WATCH;
+            mode   <= MD_DONE;
           end else if (trainSeen && !trainActive) begin      // stopped before any champion existed
             cursor <= ITEM_TRAIN;
             mode   <= MD_MODE_MENU;
-          end else if (backPulse || remoteStop) begin
+          end else if (remoteStop) begin
             trainStop <= 1'b1;
+          end else if (backPulse || enterPulse) begin
+            cursor <= ITEM_RESUME;
+            mode   <= MD_PAUSE;
+          end
+        end
+
+        MD_PAUSE: begin
+          if (trainComplete) begin
+            cursor <= ITEM_DONE_WATCH;
+            mode   <= MD_DONE;
+          end else if (!trainActive) begin
+            cursor <= ITEM_TRAIN;
+            mode   <= MD_MODE_MENU;
+          end else if (backPulse) begin
+            mode <= MD_TRAIN;
+          end else if (remoteStop) begin
+            trainStop <= 1'b1;
+            mode      <= MD_TRAIN;
+          end else if (enterPulse) begin
+            case (cursor)
+              ITEM_KEEP: begin
+                trainStop <= 1'b1;
+                mode      <= MD_TRAIN;
+              end
+              ITEM_DISCARD: begin
+                trainAbort <= 1'b1;
+                cursor     <= ITEM_TRAIN;
+                mode       <= MD_MODE_MENU;
+              end
+              default: mode <= MD_TRAIN;
+            endcase
+          end
+        end
+
+        MD_DONE: begin
+          if (backPulse || remoteExit || remoteStop) begin
+            trainAbort <= 1'b1;
+            cursor     <= ITEM_WATCH;
+            mode       <= MD_MODE_MENU;
+          end else if (enterPulse) begin
+            case (cursor)
+              ITEM_DONE_WATCH: begin
+                trainAbort <= 1'b1;
+                aiMode     <= 1'b1;
+                watchAuto  <= 1'b1;
+                watchLoad  <= 1'b1;
+                mode       <= MD_GAME;
+              end
+              ITEM_AGAIN: begin
+                trainAgain <= 1'b1;
+                againGuard <= 1'b1;
+                trainSeen  <= 1'b0;
+                mode       <= MD_TRAIN;
+              end
+              default: begin
+                trainAbort <= 1'b1;
+                cursor     <= ITEM_WATCH;
+                mode       <= MD_MODE_MENU;
+              end
+            endcase
           end
         end
 
@@ -192,7 +269,8 @@ module mode_fsm
   assign trainMode   = (mode == MD_SETUP);
   assign gameKeys    = (mode == MD_GAME && !watchAuto) || (mode == MD_SETUP);
   assign gameVisible = (mode == MD_GAME && !watchAuto) || (mode == MD_SETUP);
-  assign trainScreen = (mode == MD_TRAIN);
+  assign trainScreen = (mode == MD_TRAIN) || (mode == MD_PAUSE) || (mode == MD_DONE);
+  assign trainHold   = (mode == MD_PAUSE);
 
   always_comb begin
     case (mode)
@@ -200,6 +278,8 @@ module mode_fsm
       MD_NO_AI:     page = PAGE_NOAI;
       MD_SETUP:     page = PAGE_SETUP;
       MD_TRAIN:     page = PAGE_TRAIN;
+      MD_PAUSE:     page = PAGE_PAUSE;
+      MD_DONE:      page = PAGE_DONE;
       default:      page = (aiMode && !gameMenu) ? (debugSw ? PAGE_WATCHDBG : PAGE_WATCH) : PAGE_NONE;
     endcase
   end

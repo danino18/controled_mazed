@@ -17,6 +17,7 @@ Measurements are from Quartus Prime Lite 17.0.0 Build 595, full compile (`quartu
 | M9 world/lane split, fixed-point network, text screens, mode menu, WATCH AI (demo network), KEY1/SW1 | 95 s | 2,051 (5%) | 1,507 | 418,048 (7%) | 66 (12%) | 4 | +11.30 ns (hold +0.122 ns) | passed (reported by the user, 2026-09-17) |
 | M10 8 real parallel training lanes, throttle, batch scheduler (fixed population), snapshot, training screen | 221 s | 6,591 (16%) | 6,319 | 507,648 (9%) | 78 (14%) | 14 | +10.43 ns (hold +0.113 ns) | not programmed (M12 board test) |
 | M11 genetic algorithm, validation, champion, final test, learning chart, commit to WATCH AI, JTAG probe | 230 s | 7,165 (17%) | 7,144 | 545,280 (10%) | 85 (15%) | 16 | +9.03 ns (hold +0.093 ns) | programmed; training measured over JTAG |
+| M12 complete product: no demo network, pause menu (KEEP / DISCARD), TRAINING COMPLETE with TRAIN AGAIN, completion sound, AI status, clean final compile | 277 s | 7,225 (17%) | 7,118 | 652,288 (12%) | 96 (17%) | 16 | +10.56 ns system clock, +9.03 ns JTAG (hold +0.121 ns) | final build programmed; training measured over JTAG; physical test by the user pending |
 
 ## M0 — Baseline of the supplied demo
 
@@ -425,3 +426,82 @@ The board was programmed with `quartus_pgm` and every run was started and logged
 - ModelSim's precompiled `altera_mf` library has an `altsource_probe` model that leaves the source outputs floating (z), so the simulation-speed mux went X in `tb_train_screen`. `run_tests.sh` now searches `work` first (`-L work`), and `sim/models/altsource_probe.sv` (sources = 0) is used.
 - `get_insystem_source_probe_instance_info` must be called before `start_insystem_source_probe`; otherwise quartus_stp reports an already active session.
 - Quartus 17 reported an out-of-range index in a `for` loop with a variable bound (`top8_list`, M10). The loop now has constant bounds.
+
+## M12 — Complete product (2026-09-17)
+
+- **No demo network:** only a network trained on the FPGA is a TRAINED AI (`DEMO_NET = 0`).
+- **New screens:** the pause menu (RESUME / KEEP THE BEST / DISCARD RUN) and TRAINING COMPLETE (WATCH AI / TRAIN AGAIN / MAIN MENU).
+- **Also:** the completion sound, the mode menu names the trained AI, and the final control map, indicators, persistence and debug support.
+- Details are in `DESIGN.md` section L (Complete product, Persistence, Control map, Indicators, Debug support).
+
+### What changed
+- **`mode_fsm`:** PAUSE and DONE modes.
+  - KEY1 / Enter on the training screen open the pause menu, which holds the trainer (`trainHold`). KEEP THE BEST = stop; DISCARD RUN = abort (old AI kept).
+  - DONE: WATCH AI starts the champion; TRAIN AGAIN restarts the trainer with its last world (`trainAgain`); MAIN MENU or KEY1 go back.
+- **`train_ctrl` / `train_top`:** a start while COMPLETE begins a new run (TRAIN AGAIN), and the settings are latched then too.
+- **`game_system`:**
+  - `DEMO_NET = 0`, so the `WTCH` memory starts empty;
+  - `hold` and `trainAgain` wiring;
+  - completion chime (3 × score jingle, SW0 mutes);
+  - new text sources (pause and done cursors, test state, AI status, blank-able RUN ID).
+- **`char_screen`:** 512 fields; a HEX field with bit 31 set is blank.
+- **`chart_draw`:** 2-px champion line.
+- **Screens:** pages PAUSE and DONE (the training screen with a box); the MODE page line "TRAINED AI NONE / RUN xxxx"; new header hints.
+- **Tools:** `tools/ai_memory.tcl` (dump `WTCH`/`CHMP`, save `WTCH`); `tools/train_probe.tcl` `run` = start + log in one session.
+- **`tb_render`:** `+scenario=watch` is now the product flow (NO TRAINED AI → training → pause → TRAINING COMPLETE → WATCH AI → debug overlay → menu). The tour shows the pause menu.
+
+### Tests
+| Testbench | What it shows |
+|---|---|
+| `tb_system` (new) | The whole product (`game_system`) driven only through its inputs (training shortened by parameters to 150-step runs and 2 generations):<br>• after configuration: no AI, the menu says NONE and WATCH AI shows NO TRAINED AI;<br>• TRAIN AI runs to TRAINING COMPLETE with the completion sound;<br>• WATCH AI starts by itself in the training world; `WTCH` holds exactly the champion's genes; the AI steers; SW1 shows the debug overlay naming the trained network;<br>• KEY0 keeps the AI and WATCH AI plays it again;<br>• DISCARD RUN keeps the old AI;<br>• KEEP THE BEST → TRAIN AGAIN (same world, new RUN ID) → MAIN MENU replaces it;<br>• SW0 mutes the completion sound. |
+| `tb_chart` (new) | Every chart pixel (champion line, generation top, mean bar, axes, 50 % / 100 % guides) against a reference renderer for 0, 1, 57 and 128 generations and while disabled. |
+| `tb_mode_fsm` | Rewritten for M12: pause menu (RESUME / KEEP THE BEST / DISCARD RUN), the trainer held while paused, TRAINING COMPLETE items, the TRAIN AGAIN guard, JTAG start / stop / exit, NO TRAINED AI. |
+| `tb_train_flow` | New scenario 8: HOLD freezes the trainer (no step, no RAM write); a start while COMPLETE is TRAIN AGAIN with the last settings. |
+| `tb_train_screen`, `tb_char_screen` | The PAUSE and DONE pages (cursor, test result, AI status), the blank HEX format, 512 fields. |
+| `tb_render +scenario=watch` | The product flow as VGA images (`docs/screenshots/m12`). |
+
+**Result:** all 30 default testbenches pass. `tb_system` takes about 56 minutes in ModelSim ASE; the image render takes about 38 minutes.
+- 29 passed in the full regression run.
+- `tb_system` was stopped there and re-run on its own with the shortened GET READY and the final page memories.
+- After the DONE page cleanup, `tb_char_screen`, `tb_train_screen`, `tb_system` and `tb_render +scenario=watch` were run again.
+
+### Measured on the board (M12 build, checksum `0x0356914A`, 2026-09-17 05:50–05:54)
+- **Right after configuration:** `train_probe.tcl status` reported `committed AI 0`, and `ai_memory.tcl dump` read `WTCH` as all zeros. No network is built in, so WATCH AI shows NO TRAINED AI.
+- **Training run over JTAG** (`train_probe.tcl run 1 3 4 7`: MEDIUM, 3 corals, speed 4, SIM MAX), RUN ID F41A. The log is in `build/board_m12.log` and `build/board_m12.csv`.
+  - The champion finished all 4 validation worlds (200 gates) from generation 0 on. Mean training survival rose from 4% (generation 1) to 93–99% (generations 41–54).
+  - The run stopped as SOLVED at generation 54, **6.8 s** after the start. That covers 3,456 candidate evaluations, 216 validation runs and the 8-run final test.
+  - **Final test:** 8/8 unseen worlds, 400 gates, 100% survival.
+  - **Throughput** read from the probe during training: **641,423–641,531 steps/s** (8 lanes → 5.13 million lane-steps/s).
+- **After completion:** `committed AI 1`, and `ai_memory.tcl dump` shows `WTCH` equal to `CHMP` gene by gene (`build/board_m12_mem.txt`, `build/board_m12_net.txt`). WATCH AI therefore plays the exact champion.
+- The screen, keys, sound, KEY0 and SW0/SW1 are for the user's physical test (checklist in the final report).
+
+### Build (2026-09-17 06:21, clean final compile)
+- **Clean compile:** `fpga/db` and `fpga/incremental_db` were deleted first. Full compile took 277 s, with 0 errors, 0 critical warnings and 224 warnings.
+- **Warnings (all expected, the M11 set):**
+  - 12241: JTAG ports of `altsource_probe`.
+  - 13046/13049: `lpm_rom` tri-states converted.
+  - 10027 on `feature_world.sv:46` and `train_ctrl.sv:434`: "index not wide enough", although both indices address every element (the `S_EVO_ELITE` read is checked gene by gene in `tb_ga`).
+  - 332060 on the JTAG clock, and the unused-pin notes.
+- **Resources:** 7,225 ALMs (17%), 7,118 registers, 652,288 memory bits (12%), 96 RAM blocks (17%), 16 DSP (14%), 1 PLL.
+  - `train_top` 3,992 ALMs (`train_ctrl` 928), `char_screen` 594, `lane_view_draw` 287, `train_probe` 118, `mode_fsm` 42, `chart_draw` 42.
+  - Growth over M11: +60 ALMs, and +11 RAM blocks for the two new pages and the 512-entry field table.
+- **Timing:** met in all four corners.
+  - System clock (31.5 MHz): setup +10.56 ns (Fmax 47.2 MHz, slow 0 °C), hold +0.121 ns (fast 0 °C).
+  - JTAG clock: setup +9.03 ns, which is the design-wide worst case.
+- **Programming file:** `fpga/output_files/controlled_maze.sof`, checksum `0x03568DDE`.
+  - The board measurements above used the previous M12 build (`0x0356914A`). The only difference is the DONE page cleanup: two lane labels that stuck out beside the TRAINING COMPLETE box were removed.
+
+### Measured on the board (final build `0x03568DDE`, 2026-09-17 06:45)
+- **Right after configuration:** `committed AI 0`; `WTCH` and `CHMP` are all zeros.
+- **Training run over JTAG** (`train_probe.tcl run 1 2 2 7`: MEDIUM, 2 corals, speed 2, SIM MAX), RUN ID 860A. The log is in `build/board_final_medium.log` and `.csv`.
+  - The champion finished all 4 validation worlds from generation 0. It kept improving (last at generation 92), so the stall never reached 10 and the run went on to MAX GENERATIONS.
+  - **Timing:** generation 100 after **12.8 s**, and COMPLETE with the final test at the same log tick. That is 6,400 candidate evaluations.
+    - 0.113 s per generation for generations 1–10, when most candidates die early.
+    - 0.131 s per generation for generations 60–100, with 94–95% mean survival.
+  - **Final test:** 8/8 unseen worlds, 176 gates, 100%.
+  - **Throughput:** every full one-second window read **641,4xx–641,534 steps/s**. The first window only counted part of a second, so it read 361,002.
+- **After completion:** `WTCH` equals `CHMP` gene by gene (`build/board_final_mem.txt`).
+- The board was then configured again, so it starts with no trained AI for the physical test.
+
+### Tool issues found
+- **Slow `tb_system`:** with the real 88-frame GET READY it needed more than an hour in ModelSim ASE. It now shortens GET READY to 12 frames, as `tb_render` does. The watched game only has to start here; `tb_train_flow` and `tb_watch` check that the replayed game matches the training world.

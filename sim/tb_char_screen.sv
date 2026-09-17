@@ -153,7 +153,7 @@ module tb_char_screen;
           for (int k = 0; k < len; k++) begin
             int nib;
             nib = (v >> (4 * (len - 1 - k))) & 15;
-            model[base + k] = {4'(attr), glyph_of(nib < 10 ? 8'h30 + nib : 8'h41 + nib - 10)};
+            model[base + k] = {4'(attr), v[31] ? 6'd0 : glyph_of(nib < 10 ? 8'h30 + nib : 8'h41 + nib - 10)};
           end
         end
         FMT_WORD: begin
@@ -391,6 +391,38 @@ module tb_char_screen;
     for (int c = 46; c < 80; c++)
       if (dut.charRam[45 * 80 + c] != 10'd0) begin
         fail("the chart area is not empty in the character layer");
+        break;
+      end
+
+    // mode menu: the trained AI line (a HEX value with bit 31 set is blank)
+    sources[SRC_AI_STATUS] = 0;
+    sources[SRC_AI_RUNB]   = 32'h8000_3F2C;
+    show_page(PAGE_MODE, "mode menu, no trained AI");
+    if (cells_text(21, 10, 21) != "TRAINED AI  NONE     ") fail($sformatf("no-AI line shown as '%s'", cells_text(21, 10, 21)));
+    sources[SRC_AI_STATUS] = 1;
+    sources[SRC_AI_RUNB]   = 32'h0000_3F2C;
+    next_frame_written();
+    if (cells_text(21, 10, 21) != "TRAINED AI  RUN  3F2C") fail($sformatf("AI line shown as '%s'", cells_text(21, 10, 21)));
+
+    // pause and TRAINING COMPLETE boxes over the training screen
+    sources[SRC_PAUSE_CURSOR] = 1;
+    show_page(PAGE_PAUSE, "pause menu");
+    if (cells_text(22, 32, 15) != "TRAINING PAUSED") fail("pause title missing");
+    if (cells_text(27, 24, 15) != "> KEEP THE BEST") fail($sformatf("pause item shown as '%s'", cells_text(27, 24, 15)));
+    if (cells_text(25, 24, 1) != " ") fail("cursor also on RESUME");
+    sources[SRC_DONE_CURSOR]  = 2;
+    sources[SRC_TR_RESULT]    = 3;
+    sources[SRC_TEST_STATE]   = 1;
+    sources[SRC_CH_W]         = 4;
+    show_page(PAGE_DONE, "training complete");
+    if (cells_text(6, 31, 17) != "TRAINING COMPLETE") fail("done title missing");
+    if (cells_text(7, 38, 8) != "STOPPED ") fail($sformatf("result shown as '%s'", cells_text(7, 38, 8)));
+    if (cells_text(15, 36, 8) != "SKIPPED ") fail($sformatf("test state shown as '%s'", cells_text(15, 36, 8)));
+    if (cells_text(13, 36, 1) != "4") fail("champion worlds not shown");
+    if (cells_text(26, 24, 11) != "> MAIN MENU") fail($sformatf("done item shown as '%s'", cells_text(26, 24, 11)));
+    for (int c = 4; c < 76; c++)
+      if (!dut.charRam[19 * 80 + c][9]) begin
+        fail("the DONE box does not cover the lane labels");
         break;
       end
 

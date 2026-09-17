@@ -274,7 +274,58 @@ Superseded in M9 by section L: `game_logic` exports every signal the AI needs (b
   - Right panel: the learning chart (`chart_draw`), one 2-px column per generation from a 128-entry history memory. Dim bar = mean training survival (its own worlds); cyan = generation top on validation; gold = champion on validation.
 - **Indicators:** HEX2–0 now show the champion's validation gates.
 - **JTAG (`train_probe`, In-System Sources and Probes "TRNP"):** a 192-bit probe of the snapshot statistics and 16 source bits (start with given settings, stop, leave, simulation-speed override). `tools/train_probe.tcl` (quartus_stp) reads, drives and logs training on the board. `sim/models/altsource_probe.sv` is its simulation stand-in (sources stay 0).
-- **M12 (planned):** pause menu, TRAINING COMPLETE page with WATCH AI / TRAIN AGAIN / MAIN MENU, completion sound, `DEMO_NET = 0`.
+**Complete product (M12).**
+- **No demo network:** `DEMO_NET = 0`. The WATCH memory starts empty (`init_file = UNUSED`), and only a network trained on the FPGA counts as a TRAINED AI.
+  - After configuration, the mode menu shows TRAINED AI NONE and WATCH AI shows NO TRAINED AI.
+  - After training, the mode menu shows TRAINED AI RUN xxxx. A HEX field with bit 31 set is drawn blank.
+- **Pause menu** (`mode_fsm` PAUSE, page PAUSE = the training screen with a box). KEY1 or Enter opens it, and the trainer holds between steps (run state PAUSED).
+  - **RESUME** (or KEY1) continues.
+  - **KEEP THE BEST** stops: final test, then commit.
+  - **DISCARD RUN** returns to the menu and keeps the previous AI.
+- **TRAINING COMPLETE** (page DONE): result (MAX GEN / SOLVED / STOPPED), RUN ID, generations, world, the champion's generation and candidate, validation and final-test worlds / gates / survival (SKIPPED if a second STOP skipped the test), and a note that the champion is now the WATCH AI.
+  - **WATCH AI** plays it at once in its training world.
+  - **TRAIN AGAIN** starts a new run in the same world with a new RUN ID. The trainer accepts a start while COMPLETE.
+  - **MAIN MENU** (or KEY1) returns to the mode menu.
+- **Completion sound:** the score jingle plays three times when training completes. Training itself is silent; SW0 mutes everything.
+- **Chart:** the champion line is 2 px thick.
+- **Text screens:** up to 512 fields (the TRAIN, PAUSE and DONE pages share the layout); the longest per-frame text pass is 4,478 clocks.
+
+**Persistence (D2).**
+
+| Event | Trained AI (WATCH memory + committed registers) |
+|---|---|
+| GAME OVER, RESTART, MAIN MENU, KEY1, a new human game | kept |
+| TRAIN AI stopped before a champion exists, or DISCARD RUN | kept (the old one) |
+| A training run that completes (MAX GEN, SOLVED, KEEP THE BEST) | replaced by the new champion |
+| KEY0 | kept: the registers have no reset and M10K contents are never cleared; the trainer itself goes back to idle |
+| Reconfiguring the FPGA / power off | lost (the network can be saved first with `tools/ai_memory.tcl save`) |
+
+**Control map (final).**
+
+| Input | Mode menu / NO TRAINED AI | HUMAN PLAY | WATCH AI | TRAIN AI setup | Training screen | Pause menu | TRAINING COMPLETE |
+|---|---|---|---|---|---|---|---|
+| Numpad 8 / 2 (Arrow Up / Down) | move the cursor | maze up / down; menu cursor | – (the AI steers); menu cursor on GAME OVER | menu cursor | – | cursor | cursor |
+| Numpad 4 / 6 | – | world speed faster / slower | world speed faster / slower | world speed to train on | **simulation speed** faster / slower (×1 … MAX) | simulation speed | simulation speed |
+| Enter | select | menus, RESTART / MAIN MENU | RESTART / MAIN MENU on GAME OVER | select | open the pause menu | select | select |
+| KEY1 | back (NO AI → menu) | back to the mode menu | back to the mode menu | back to the mode menu | open the pause menu | RESUME | MAIN MENU |
+| KEY0 | reset (keeps a trained AI) | reset | reset | reset | reset (training is lost, the committed AI stays) | reset | reset |
+| SW0 | mute all sound | | | | | | |
+| SW1 | – | – | AI debug overlay (inputs F0–F3, h0, output y, network) | – | – | – | – |
+
+**Indicators (final).**
+- LEDR0 = PLL locked.
+- Game modes: LEDR[4:2] = game screen, [6:5] = difficulty, [8:7] = columns, LEDR9 = heartbeat. In WATCH AI, LEDR9 / LEDR8 = maze up / down.
+- Training screens: LEDR[8:1] = lanes 7..0 alive, LEDR9 toggles once per generation.
+- HEX: game modes show the best score (HEX5–3) and the score (HEX2–0). Training screens show the generation (HEX5–3) and the champion's validation gates (HEX2–0).
+
+**Debug support.**
+- **In-System Sources and Probes `TRNP`** (`train_probe`) with `tools/train_probe.tcl`: live statistics (generation, champion, validation, mean survival, stall, stage, steps/s, final test, RUN ID, evaluations, committed AI); start / stop / leave training and override the simulation speed from the PC; log a whole run to CSV.
+- **In-System Memory Content Editor:** `WTCH` (the WATCH AI network) and `CHMP` (the current run's champion). `tools/ai_memory.tcl` dumps them or saves `WTCH` in the `nn_tool` format.
+- **SignalTap:** no `.stp` is built into the product (compile time, and a hand-written `.stp` could not be checked). The useful nodes to add with the Node Finder are:
+  - `train_top:trainer|train_ctrl:ctrl|state`, `runKind`, `gen`, `batch`, `runIdx`, `g`, `k`, `child`, `tsel`, `rnd`, `popWe`, `popWa`, `popWd`, `fitWe`, `chmpWe`, `stopReq`;
+  - `train_lanes:lanes|busy`, `ph`, `running`, `playing`, `playSteps`, `alive`, `done`, `enabled`, `snapReq`, `snapGrant`;
+  - `lane[0].unit|network|acc`, `act`;
+  - `mode_fsm:modes|mode`, `cursor`.
 
 ## M. Risks
 

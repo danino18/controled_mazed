@@ -16,6 +16,8 @@
 //      skips the rest of the test and still commits
 //   7. SOLVED: a trainer with SOLVE_STALL = 1 stops as soon as its champion
 //      completed all four validation worlds and one generation passed
+//   8. TRAIN AGAIN: a start while COMPLETE begins a new run at once; hold
+//      (the pause menu) freezes the lanes between steps; abort keeps the AI
 `timescale 1ns / 1ps
 
 module tb_train_flow;
@@ -34,7 +36,7 @@ module tb_train_flow;
   assign frameTick = frameCount == 0;
 
   // ---------------------------------------------------------------- trainer under test
-  logic        start = 1'b0, stop = 1'b0, abort = 1'b0;
+  logic        start = 1'b0, stop = 1'b0, abort = 1'b0, hold = 1'b0;
   logic [15:0] runIdIn = 16'h1D2E;
   logic        active, complete, aiValid, watchWe;
   logic [5:0]  watchWa;
@@ -48,7 +50,7 @@ module tb_train_flow;
   logic        aiTestValid;
 
   train_top #(.T_LIMIT(TL), .HOLD_RUN_FRAMES(1), .HOLD_GEN_FRAMES(1), .MAX_GEN(3), .SECOND_CLOCKS(100000)) dut (
-      .clk(clk), .resetN(resetN), .start(start), .stop(stop), .abort(abort), .hold(1'b0), .runIdIn(runIdIn),
+      .clk(clk), .resetN(resetN), .start(start), .stop(stop), .abort(abort), .hold(hold), .runIdIn(runIdIn),
       .difficultyIn(2'd1), .columnsIn(2'd2), .speedIn(3'd4), .simLevel(3'd7), .frameTick(frameTick),
       .active(active), .complete(complete), .liveAlive(), .genPulse(),
       .watchWe(watchWe), .watchWa(watchWa), .watchWd(watchWd), .aiValid(aiValid),
@@ -306,6 +308,39 @@ module tb_train_flow;
     if (dut.ctrl.testValid || aiTestValid || commits != 3 || aiRunId != 16'h3C3C)
       fail("a stop during the final test: test not skipped or AI not committed");
     else $display("INFO: 6. KEY0 kept the AI; a STOP during the final test skipped it and still committed");
+
+    // ---- 8. TRAIN AGAIN straight from COMPLETE, and the pause (hold)
+    runIdIn = 16'h4D4D;
+    pulse(start);
+    repeat (3) @(negedge clk);
+    if (complete || !active || dut.ctrl.runId != 16'h4D4D || dut.ctrl.gen != 0)
+      fail("a start in COMPLETE did not begin a new run");
+    wait (dut.ctrl.champExists && dut.ctrl.runKind == 2'd0 && dut.lanes.running && dut.lanes.playing);
+    begin
+      int steps, genBefore;
+      logic [11:0] playBefore;
+      @(negedge clk);
+      hold = 1'b1;
+      repeat (STEP_CLOCKS + 2) @(negedge clk);       // a step already started finishes
+      playBefore = dut.lanes.playSteps;
+      genBefore  = dut.ctrl.gen;
+      steps = 0;
+      repeat (FRAME_CLOCKS * 20) begin
+        @(negedge clk);
+        if (dut.lanes.stepStart) steps++;
+      end
+      if (steps != 0 || dut.lanes.playSteps != playBefore || dut.ctrl.gen != genBefore)
+        fail($sformatf("hold: %0d steps started while paused", steps));
+      if (dut.ctrl.runState != RS_PAUSED) fail("run state is not PAUSED");
+      @(negedge clk);
+      hold = 1'b0;
+      repeat (STEP_CLOCKS * 4) @(negedge clk);
+      if (dut.lanes.playSteps == playBefore && dut.lanes.running) fail("training did not resume after the hold");
+    end
+    pulse(abort);
+    repeat (5) @(negedge clk);
+    if (active || commits != 3 || aiRunId != 16'h3C3C) fail("abort of TRAIN AGAIN changed the committed AI");
+    else $display("INFO: 8. TRAIN AGAIN from COMPLETE started a new run; the hold froze it; abort kept the AI");
 
     // ---- 7. SOLVED
     pulse(solvedStart);

@@ -46,7 +46,7 @@ if {$src eq "" || $fontSrc eq "" || $rtlDir eq ""} {
 set COLS 80
 set ROWS 60
 set CELLS [expr {$COLS * $ROWS}]
-set MAX_FIELDS 256
+set MAX_FIELDS 512
 set MAX_PAGES 15
 set MAX_SOURCES 256
 set MAX_WORDS 128

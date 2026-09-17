@@ -5,7 +5,7 @@
 //                so not comparable between generations)
 //   cyan point   survival % of the generation's best candidate on the fixed
 //                validation worlds (comparable between generations)
-//   gold line    survival % of the champion on the validation worlds
+//   gold line    survival % of the champion on the validation worlds (2 px)
 // with axes and 50 % / 100 % guide lines. Only the first `count` generations
 // (from the display snapshot) are drawn.
 //
@@ -135,7 +135,7 @@ module chart_draw
     end else begin
       valid2 <= valid1;
       hit2   <= 1'b1;
-      if (plot1 && height1 == {1'b0, champ})                                        colour2 <= C_CHAMP;
+      if (plot1 && (height1 == {1'b0, champ} || height1 + 8'd1 == {1'b0, champ}))   colour2 <= C_CHAMP;
       else if (plot1 && (height1 == {1'b0, top} || height1 + 8'd1 == {1'b0, top}))  colour2 <= C_TOP;
       else if (plot1 && height1 < {1'b0, mean})                                     colour2 <= C_MEAN;
       else if (axis1)                                                               colour2 <= C_AXIS;

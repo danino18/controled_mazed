@@ -127,7 +127,7 @@ module train_top
       difficulty <= DIFF_EASY;
       columns    <= 2'd1;
       speed      <= '0;
-    end else if (start && !active) begin
+    end else if (start && (!active || complete)) begin
       difficulty <= difficultyIn;
       columns    <= columnsIn;
       speed      <= speedIn;
